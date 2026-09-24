@@ -18,6 +18,18 @@ export const errorHandler = (
 ): void => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal server error';
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Always log 500 server errors on the server for diagnostics
+  if (statusCode >= 500) {
+    console.error('[Server Error]:', err);
+  }
+
+  // Handle CORS errors
+  if (err.message === 'Not allowed by CORS') {
+    statusCode = 403;
+    message = 'Cross-Origin Request Blocked: Origin is not permitted.';
+  }
 
   // Handle Mongoose duplicate key error (code 11000)
   if (err.code === 11000) {
@@ -43,6 +55,11 @@ export const errorHandler = (
   if (err.name === 'CastError') {
     statusCode = 400;
     message = `Invalid value for parameter: ${err.path}`;
+  }
+
+  // In production, mask unexpected 500 errors to prevent information leakage
+  if (statusCode === 500 && isProduction && !(err instanceof AppError)) {
+    message = 'An unexpected internal server error occurred.';
   }
 
   res.status(statusCode).json({

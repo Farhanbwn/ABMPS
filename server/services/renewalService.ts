@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { MembershipRenewal, IMembershipRenewal } from '../models/MembershipRenewal';
 import { Member } from '../models/Member';
 import { AppError } from '../middleware/errorHandler';
+import { escapeRegex } from '../utils/regex';
 
 export interface RenewalInput {
   memberId: string;
@@ -17,6 +18,9 @@ export class RenewalService {
    * Renew a membership safely
    */
   static async createRenewal(data: RenewalInput) {
+    if (!mongoose.Types.ObjectId.isValid(data.memberId)) {
+      throw new AppError('Invalid Member ID format', 400);
+    }
     const member = await Member.findOne({ _id: data.memberId, isDeleted: false });
     if (!member) {
       throw new AppError('Member not found or has been deleted.', 404);
@@ -124,6 +128,9 @@ export class RenewalService {
    * Get all renewals for a specific member
    */
   static async getRenewalsByMember(memberId: string) {
+    if (!mongoose.Types.ObjectId.isValid(memberId)) {
+      throw new AppError('Invalid Member ID format', 400);
+    }
     return MembershipRenewal.find({ memberId }).sort({ membershipYear: -1, renewalDate: -1 }).lean();
   }
 
@@ -157,15 +164,16 @@ export class RenewalService {
       query.membershipYear = Number(params.year);
     }
 
-    if (params.status && params.status !== 'All') {
+    if (params.status && params.status !== 'All' && typeof params.status === 'string') {
       query.status = params.status;
     }
 
-    if (params.search && params.search.trim()) {
-      const term = params.search.trim();
-      const numTerm = Number(term);
-      const orConditions: any[] = [{ billId: { $regex: term, $options: 'i' } }];
-      if (!isNaN(numTerm)) {
+    if (params.search && typeof params.search === 'string' && params.search.trim()) {
+      const rawTerm = params.search.trim().slice(0, 100);
+      const safeTerm = escapeRegex(rawTerm);
+      const numTerm = Number(rawTerm);
+      const orConditions: any[] = [{ billId: { $regex: safeTerm, $options: 'i' } }];
+      if (!isNaN(numTerm) && numTerm > 0) {
         orConditions.push({ serialNo: numTerm });
       }
       query.$or = orConditions;
@@ -196,6 +204,9 @@ export class RenewalService {
    * Update renewal record
    */
   static async updateRenewal(id: string, updateData: Partial<IMembershipRenewal>) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid Renewal ID format', 400);
+    }
     const renewal = await MembershipRenewal.findById(id);
     if (!renewal) {
       throw new AppError('Renewal record not found', 404);
@@ -214,6 +225,9 @@ export class RenewalService {
    * Delete renewal record
    */
   static async deleteRenewal(id: string) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid Renewal ID format', 400);
+    }
     const renewal = await MembershipRenewal.findByIdAndDelete(id);
     if (!renewal) {
       throw new AppError('Renewal record not found', 404);

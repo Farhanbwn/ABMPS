@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import * as XLSX from 'xlsx';
+import writeXlsxFile from 'write-excel-file/browser';
 import { Modal } from '../common/Modal';
 import { Member } from '../../types';
 import { memberService } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
-import { FileSpreadsheet, Download, Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 
 interface ExcelExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentFilteredMembers: Member[];
-  currentFilters: any;
+  currentFilters?: any;
 }
 
 interface ExportColumnDef {
@@ -92,47 +92,29 @@ export const ExcelExportModal: React.FC<ExcelExportModalProps> = ({
 
       const activeCols = EXCEL_COLUMNS.filter((c) => selectedColumns.includes(c.key));
 
-      // Build structured rows
-      const rows = dataToExport.map((member) => {
-        const row: Record<string, any> = {};
-        for (const col of activeCols) {
-          if (col.format) {
-            row[col.label] = col.format(member);
-          } else {
-            row[col.label] = (member as any)[col.key] ?? '';
+      // Build structured rows for write-excel-file
+      const headerRow = activeCols.map((col) => ({
+        value: col.label,
+        fontWeight: 'bold' as const,
+      }));
+
+      const dataRows = dataToExport.map((member) => {
+        return activeCols.map((col) => {
+          let val = col.format ? col.format(member) : (member as any)[col.key] ?? '';
+          if (typeof val === 'number') {
+            return { type: Number, value: val };
           }
-        }
-        return row;
+          return { type: String, value: String(val ?? '') };
+        });
       });
-
-      // Create sheet & workbook
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-
-      // Auto-fit column widths
-      const colWidths = activeCols.map((col) => {
-        let maxLen = col.label.length;
-        for (const r of rows) {
-          const val = r[col.label];
-          if (val) {
-            const strLen = String(val).length;
-            if (strLen > maxLen) maxLen = strLen;
-          }
-        }
-        return { wch: Math.min(50, Math.max(maxLen + 3, 12)) };
-      });
-      worksheet['!cols'] = colWidths;
-
-      // Freeze header row
-      worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Members');
 
       // Generate filename with current date: Members_YYYY-MM-DD.xlsx
       const today = new Date().toISOString().split('T')[0];
       const filename = `Members_${today}.xlsx`;
 
-      XLSX.writeFile(workbook, filename);
+      await writeXlsxFile([headerRow, ...dataRows], {
+        fileName: filename,
+      });
 
       success('Excel exported successfully.');
       onClose();
@@ -143,6 +125,7 @@ export const ExcelExportModal: React.FC<ExcelExportModalProps> = ({
       setIsExporting(false);
     }
   };
+
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Export Members to Excel" maxWidth="xl">

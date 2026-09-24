@@ -13,8 +13,8 @@ export const loginAdmin = async (
   try {
     const { username, password } = req.body;
 
-    if (!username || !password) {
-      throw new AppError('Please provide username and password', 400);
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+      throw new AppError('Please provide valid username and password strings', 400);
     }
 
     const admin = await Admin.findOne({ username: username.toLowerCase().trim() });
@@ -101,12 +101,12 @@ export const changePassword = async (
 
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      throw new AppError('Please provide both current and new password', 400);
+    if (!currentPassword || !newPassword || typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+      throw new AppError('Please provide both current and new password strings', 400);
     }
 
-    if (newPassword.length < 6) {
-      throw new AppError('New password must be at least 6 characters long', 400);
+    if (newPassword.length < 8) {
+      throw new AppError('New password must be at least 8 characters long', 400);
     }
 
     if (confirmPassword && newPassword !== confirmPassword) {
@@ -125,11 +125,21 @@ export const changePassword = async (
 
     const salt = await bcrypt.genSalt(10);
     admin.passwordHash = await bcrypt.hash(newPassword, salt);
+    admin.passwordChangedAt = new Date();
     await admin.save();
+
+    // Issue newly signed token reflecting current password version
+    const newToken = signToken({
+      id: admin._id.toString(),
+      username: admin.username,
+    });
 
     res.status(200).json({
       success: true,
       message: 'Password changed successfully',
+      data: {
+        token: newToken,
+      },
     });
   } catch (error) {
     next(error);

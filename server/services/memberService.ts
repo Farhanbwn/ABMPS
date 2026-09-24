@@ -1,6 +1,18 @@
+import mongoose from 'mongoose';
 import { Member, IMember } from '../models/Member';
 import { MembershipRenewal } from '../models/MembershipRenewal';
 import { AppError } from '../middleware/errorHandler';
+import { escapeRegex } from '../utils/regex';
+
+const ALLOWED_SORT_FIELDS = new Set([
+  'serialNo',
+  'nameEnglish',
+  'nameBengali',
+  'joinYear',
+  'membershipStatus',
+  'createdAt',
+  'updatedAt',
+]);
 
 export interface MemberQueryParams {
   page?: number;
@@ -25,19 +37,20 @@ export class MemberService {
 
     const query: any = { isDeleted: false };
 
-    // Search partial matches
-    if (params.search && params.search.trim()) {
-      const term = params.search.trim();
-      const numTerm = Number(term);
+    // Search partial matches with ReDoS/Regex Injection protection
+    if (params.search && typeof params.search === 'string' && params.search.trim()) {
+      const rawTerm = params.search.trim().slice(0, 100);
+      const safeTerm = escapeRegex(rawTerm);
+      const numTerm = Number(rawTerm);
       const orConditions: any[] = [
-        { nameBengali: { $regex: term, $options: 'i' } },
-        { nameEnglish: { $regex: term, $options: 'i' } },
-        { mobileNo: { $regex: term, $options: 'i' } },
-        { activeBillId: { $regex: term, $options: 'i' } },
+        { nameBengali: { $regex: safeTerm, $options: 'i' } },
+        { nameEnglish: { $regex: safeTerm, $options: 'i' } },
+        { mobileNo: { $regex: safeTerm, $options: 'i' } },
+        { activeBillId: { $regex: safeTerm, $options: 'i' } },
       ];
 
       // If user typed a number, also match serialNo
-      if (!isNaN(numTerm)) {
+      if (!isNaN(numTerm) && numTerm > 0) {
         orConditions.push({ serialNo: numTerm });
       }
 
@@ -45,12 +58,12 @@ export class MemberService {
     }
 
     // Status filter
-    if (params.status && params.status !== 'All') {
+    if (params.status && params.status !== 'All' && typeof params.status === 'string') {
       query.membershipStatus = params.status;
     }
 
     // Gender filter
-    if (params.gender && params.gender !== 'All') {
+    if (params.gender && params.gender !== 'All' && typeof params.gender === 'string') {
       query.gender = params.gender;
     }
 
@@ -69,8 +82,8 @@ export class MemberService {
       query._id = { $in: renewedMemberIds };
     }
 
-    // Sorting
-    const sortField = params.sortBy || 'serialNo';
+    // Sorting with whitelist protection
+    const sortField = params.sortBy && ALLOWED_SORT_FIELDS.has(params.sortBy) ? params.sortBy : 'serialNo';
     const sortDirection = params.sortOrder === 'desc' ? -1 : 1;
     const sort: any = { [sortField]: sortDirection };
 
@@ -92,30 +105,32 @@ export class MemberService {
 
   /**
    * Get all members matching filter (for Excel export or complete list)
+   * Enforces 10,000 maximum record ceiling to prevent memory exhaustion DoS
    */
   static async getAllFilteredMembers(params: Omit<MemberQueryParams, 'page' | 'limit'>) {
     const query: any = { isDeleted: false };
 
-    if (params.search && params.search.trim()) {
-      const term = params.search.trim();
-      const numTerm = Number(term);
+    if (params.search && typeof params.search === 'string' && params.search.trim()) {
+      const rawTerm = params.search.trim().slice(0, 100);
+      const safeTerm = escapeRegex(rawTerm);
+      const numTerm = Number(rawTerm);
       const orConditions: any[] = [
-        { nameBengali: { $regex: term, $options: 'i' } },
-        { nameEnglish: { $regex: term, $options: 'i' } },
-        { mobileNo: { $regex: term, $options: 'i' } },
-        { activeBillId: { $regex: term, $options: 'i' } },
+        { nameBengali: { $regex: safeTerm, $options: 'i' } },
+        { nameEnglish: { $regex: safeTerm, $options: 'i' } },
+        { mobileNo: { $regex: safeTerm, $options: 'i' } },
+        { activeBillId: { $regex: safeTerm, $options: 'i' } },
       ];
-      if (!isNaN(numTerm)) {
+      if (!isNaN(numTerm) && numTerm > 0) {
         orConditions.push({ serialNo: numTerm });
       }
       query.$or = orConditions;
     }
 
-    if (params.status && params.status !== 'All') {
+    if (params.status && params.status !== 'All' && typeof params.status === 'string') {
       query.membershipStatus = params.status;
     }
 
-    if (params.gender && params.gender !== 'All') {
+    if (params.gender && params.gender !== 'All' && typeof params.gender === 'string') {
       query.gender = params.gender;
     }
 
@@ -132,16 +147,20 @@ export class MemberService {
       query._id = { $in: renewedMemberIds };
     }
 
-    const sortField = params.sortBy || 'serialNo';
+    const sortField = params.sortBy && ALLOWED_SORT_FIELDS.has(params.sortBy) ? params.sortBy : 'serialNo';
     const sortDirection = params.sortOrder === 'desc' ? -1 : 1;
 
-    return Member.find(query).sort({ [sortField]: sortDirection }).lean();
+    // Safety limit 10,000 to prevent OOM
+    return Member.find(query).sort({ [sortField]: sortDirection }).limit(10000).lean();
   }
 
   /**
    * Get member by ID with renewal history
    */
   static async getMemberById(id: string) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid Member ID format', 400);
+    }
     const member = await Member.findOne({ _id: id, isDeleted: false });
     if (!member) {
       throw new AppError('Member not found', 404);
@@ -156,6 +175,7 @@ export class MemberService {
       renewals,
     };
   }
+
 
   /**
    * Get member by serial number
@@ -232,6 +252,9 @@ export class MemberService {
    * Update member
    */
   static async updateMember(id: string, updateData: Partial<IMember>) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid Member ID format', 400);
+    }
     const member = await Member.findOne({ _id: id, isDeleted: false });
     if (!member) {
       throw new AppError('Member not found', 404);
@@ -262,6 +285,9 @@ export class MemberService {
    * Soft delete member
    */
   static async deleteMember(id: string) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new AppError('Invalid Member ID format', 400);
+    }
     const member = await Member.findOne({ _id: id, isDeleted: false });
     if (!member) {
       throw new AppError('Member not found', 404);

@@ -1,17 +1,42 @@
 import jwt from 'jsonwebtoken';
 
-interface TokenPayload {
+export interface TokenPayload {
   id: string;
   username: string;
+  tokenVersion?: number;
+  iat?: number;
+  exp?: number;
 }
 
-export const signToken = (payload: TokenPayload): string => {
-  const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_mms_2026_secure';
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (isProduction) {
+    if (!secret || secret === 'super_secret_jwt_key_mms_2026_secure' || secret.length < 32) {
+      throw new Error(
+        'FATAL SECURITY CONFIGURATION: In production mode, JWT_SECRET must be configured with at least 32 characters and cannot use default placeholder.'
+      );
+    }
+    return secret;
+  }
+
+  if (!secret) {
+    console.warn(
+      '[Security Warning] JWT_SECRET is not defined in environment variables. Falling back to development secret.'
+    );
+  }
+
+  return secret || 'super_secret_jwt_key_mms_2026_secure';
+};
+
+export const signToken = (payload: Omit<TokenPayload, 'iat' | 'exp'>): string => {
+  const secret = getJwtSecret();
   const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
   return jwt.sign(payload, secret, { expiresIn: expiresIn as any });
 };
 
 export const verifyToken = (token: string): TokenPayload => {
-  const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_mms_2026_secure';
+  const secret = getJwtSecret();
   return jwt.verify(token, secret) as TokenPayload;
 };

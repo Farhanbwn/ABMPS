@@ -70,6 +70,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       return;
     }
 
+const escapeHtml = (text: any): string => {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+};
+
     const visibleCols = ALL_COLUMNS.filter((c) => selectedColumns.includes(c.key));
     const todayFormatted = new Date().toLocaleDateString('en-GB', {
       day: 'numeric',
@@ -79,19 +89,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
     const rowsHtml = members
       .map(
-        (m, idx) => `
+        (m) => `
         <tr>
           ${visibleCols
             .map((c) => {
-              const val = c.render ? c.render(m) : ((m as any)[c.key] ?? '');
-              return `<td class="${c.key === 'nameBengali' ? 'bengali-text' : ''}">${val}</td>`;
+              const rawVal = c.render ? c.render(m) : ((m as any)[c.key] ?? '');
+              const safeVal = escapeHtml(rawVal);
+              return `<td class="${c.key === 'nameBengali' ? 'bengali-text' : ''}">${safeVal}</td>`;
             })
             .join('')}
         </tr>`
       )
       .join('');
 
-    const headersHtml = visibleCols.map((c) => `<th>${c.label}</th>`).join('');
+    const headersHtml = visibleCols.map((c) => `<th>${escapeHtml(c.label)}</th>`).join('');
 
     const htmlContent = `
       <!DOCTYPE html>

@@ -40,6 +40,18 @@ export const authenticateAdmin = async (
       return;
     }
 
+    // Invalidate tokens issued prior to password change
+    if (admin.passwordChangedAt && decoded.iat) {
+      const passwordChangedSeconds = Math.floor(admin.passwordChangedAt.getTime() / 1000);
+      if (decoded.iat < passwordChangedSeconds - 1) {
+        res.status(401).json({
+          success: false,
+          message: 'Session has been invalidated due to a password change. Please log in again.',
+        });
+        return;
+      }
+    }
+
     req.admin = {
       id: admin._id.toString(),
       username: admin.username,

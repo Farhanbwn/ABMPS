@@ -1,8 +1,8 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
 import { Admin } from '../models/Admin';
 import { Member } from '../models/Member';
 import { MembershipRenewal } from '../models/MembershipRenewal';
@@ -16,10 +16,20 @@ interface RawMemberItem {
   dateOfBirth?: string | null;
   address?: string | null;
   mobileNo?: string | number | null;
-  gender?: string | null;
+  gender?: 'Male' | 'Female' | 'Other' | null;
   joinYear?: number | null;
   membershipStatus?: 'Active' | 'Inactive' | string;
   activeBillId?: string | null;
+}
+
+interface RawRenewalItem {
+  memberId?: string;
+  serialNo: number;
+  membershipYear: number;
+  billId?: string | null;
+  renewalDate?: string | Date | null;
+  status?: 'Active' | 'Pending' | 'Cancelled';
+  notes?: string;
 }
 
 async function seed() {
@@ -32,162 +42,132 @@ async function seed() {
     console.log(`[Seed] Connecting to MongoDB: ${mongoUri.replace(/:([^@]+)@/, ':****@')}`);
     await mongoose.connect(mongoUri);
 
-    // 1. Seed/Update Admin from .env
-    const adminUsername = (process.env.ADMIN_USERNAME || 'admin@abmps.com').toLowerCase().trim();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@9232';
+    // Seed administrator account if not present
+    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'admin12345';
 
-    console.log(`[Seed] Configuring Admin account for '${adminUsername}'...`);
-    const passwordHash = await bcrypt.hash(adminPassword, 10);
-
-    const existingAdmin = await Admin.findOne({ username: adminUsername });
-    if (existingAdmin) {
-      existingAdmin.passwordHash = passwordHash;
-      await existingAdmin.save();
-      console.log(`[Seed] Updated existing admin password for: ${adminUsername}`);
-    } else {
+    let existingAdmin = await Admin.findOne({ username: adminUsername });
+    if (!existingAdmin) {
+      console.log(`[Seed] Creating initial administrator account: ${adminUsername}`);
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(adminPassword, salt);
       await Admin.create({
         username: adminUsername,
         passwordHash,
+        passwordChangedAt: new Date(),
       });
-      console.log(`[Seed] Created new admin user: ${adminUsername}`);
+      console.log(`[Seed] Administrator account created successfully.`);
+    } else {
+      console.log(`[Seed] Existing administrator account verified: ${adminUsername}`);
     }
 
-    // 2. Read member_management_members.json
-    const possiblePaths = [
-      path.resolve(__dirname, '../../member_management_members.json'),
-      path.resolve(__dirname, '../member_management_members.json'),
-      'C:\\Users\\farha\\Desktop\\MMS\\member_management_members.json',
-    ];
+    // Resolve member_management_members.json dynamically relative to project root
+    const jsonFilePath = process.env.MEMBERS_JSON_PATH
+      ? path.resolve(process.env.MEMBERS_JSON_PATH)
+      : path.resolve(__dirname, '../../member_management_members.json');
 
-    let jsonFilePath = '';
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        jsonFilePath = p;
-        break;
-      }
+    if (!fs.existsSync(jsonFilePath)) {
+      throw new Error(`member_management_members.json not found at: ${jsonFilePath}`);
     }
 
-    if (!jsonFilePath) {
-      throw new Error(`member_management_members.json not found in paths: ${possiblePaths.join(', ')}`);
-    }
-
-    console.log(`[Seed] Loading members from: ${jsonFilePath}`);
+    console.log(`[Seed] Loading members exclusively from: ${jsonFilePath}`);
     const fileContent = fs.readFileSync(jsonFilePath, 'utf-8');
     const parsedData = JSON.parse(fileContent);
     const rawMembers: RawMemberItem[] = parsedData.members || parsedData;
+    const rawRenewals: RawRenewalItem[] = parsedData.membershipRenewals || [];
 
-    console.log(`[Seed] Found ${rawMembers.length} member records in JSON. Cleaning collections...`);
+    console.log(`[Seed] Found ${rawMembers.length} member records in JSON. Resetting member collections...`);
 
-    // Clean existing data for clean import
+    // Clean existing member & renewal collections
     await Member.deleteMany({});
     await MembershipRenewal.deleteMany({});
 
-    const currentYear = new Date().getFullYear();
-    let membersInserted = 0;
-    let renewalsCreated = 0;
-
-    for (const raw of rawMembers) {
-      if (!raw.serialNo || !raw.nameBengali) {
-        console.warn(`[Seed] Skipping record missing serialNo or nameBengali:`, raw);
-        continue;
-      }
-
-      // Parse and sanitize fields
-      const serialNo = Number(raw.serialNo);
-      const nameBengali = String(raw.nameBengali).trim();
-      const nameEnglish = raw.nameEnglish ? String(raw.nameEnglish).trim() : '';
-
-      let dateOfBirth: Date | null = null;
-      if (raw.dateOfBirth) {
-        const parsedDate = new Date(raw.dateOfBirth);
-        if (!isNaN(parsedDate.getTime())) {
-          dateOfBirth = parsedDate;
+    // Filter and sanitize member records from the file
+    const validMemberDocs = rawMembers
+      .filter((raw) => raw.serialNo && raw.nameBengali)
+      .map((raw) => {
+        let dateOfBirth: Date | null = null;
+        if (raw.dateOfBirth) {
+          const parsedDate = new Date(raw.dateOfBirth);
+          if (!isNaN(parsedDate.getTime())) {
+            dateOfBirth = parsedDate;
+          }
         }
-      }
 
-      const address = raw.address ? String(raw.address).trim() : '';
-      const mobileNo = raw.mobileNo ? String(raw.mobileNo).trim() : '';
-
-      let gender: 'Male' | 'Female' | 'Other' | null = null;
-      if (raw.gender === 'Male' || raw.gender === 'Female' || raw.gender === 'Other') {
-        gender = raw.gender;
-      }
-
-      let joinYear: number | null = null;
-      if (raw.joinYear) {
-        const y = Number(raw.joinYear);
-        if (!isNaN(y) && y >= 1950 && y <= currentYear + 1) {
-          joinYear = y;
+        let gender: 'Male' | 'Female' | 'Other' | null = null;
+        if (raw.gender === 'Male' || raw.gender === 'Female' || raw.gender === 'Other') {
+          gender = raw.gender;
         }
-      }
 
-      const membershipStatus = raw.membershipStatus === 'Inactive' ? 'Inactive' : 'Active';
-      const activeBillId = raw.activeBillId ? String(raw.activeBillId).trim() : (membershipStatus === 'Active' ? `BILL-${currentYear}-${serialNo}` : null);
+        const joinYear = raw.joinYear ? Number(raw.joinYear) : null;
+        const membershipStatus = raw.membershipStatus === 'Inactive' ? 'Inactive' : 'Active';
+        const activeBillId = raw.activeBillId ? String(raw.activeBillId).trim() : null;
 
-      const member = await Member.create({
-        serialNo,
-        nameBengali,
-        nameEnglish,
-        dateOfBirth,
-        address,
-        mobileNo,
-        gender,
-        joinYear,
-        membershipStatus,
-        activeBillId,
-        isDeleted: false,
-        deletedAt: null,
+        return {
+          serialNo: Number(raw.serialNo),
+          nameBengali: String(raw.nameBengali).trim(),
+          nameEnglish: raw.nameEnglish ? String(raw.nameEnglish).trim() : '',
+          dateOfBirth,
+          address: raw.address ? String(raw.address).trim() : '',
+          mobileNo: raw.mobileNo ? String(raw.mobileNo).trim() : '',
+          gender,
+          joinYear,
+          membershipStatus,
+          activeBillId,
+          isDeleted: false,
+          deletedAt: null,
+        };
       });
 
-      membersInserted++;
+    // Bulk insert members
+    const insertedMembers = await Member.insertMany(validMemberDocs);
+    console.log(`[Seed] Successfully inserted ${insertedMembers.length} members.`);
 
-      // Create renewal records
-      // If joinYear is available, create annual renewals from joinYear up to currentYear (or prior if inactive)
-      if (joinYear) {
-        const endYear = membershipStatus === 'Active' ? currentYear : currentYear - 1;
-        for (let y = joinYear; y <= endYear; y++) {
-          const billId = y === currentYear && activeBillId ? activeBillId : `BILL-${y}-${serialNo}`;
-          const renewalDate = new Date(y, 0, Math.floor(Math.random() * 20) + 5);
+    // If membership renewals are provided in the JSON file, seed them
+    let renewalsInserted = 0;
+    if (Array.isArray(rawRenewals) && rawRenewals.length > 0) {
+      const serialToMemberMap = new Map<number, mongoose.Types.ObjectId>();
+      for (const m of insertedMembers) {
+        serialToMemberMap.set(m.serialNo, m._id as mongoose.Types.ObjectId);
+      }
 
-          await MembershipRenewal.create({
-            memberId: member._id,
-            serialNo: member.serialNo,
-            membershipYear: y,
-            billId,
-            renewalDate,
-            status: 'Active',
-            notes: y === joinYear ? 'Initial membership join' : `Annual renewal for ${y}`,
-          });
-          renewalsCreated++;
-        }
-      } else if (membershipStatus === 'Active' && activeBillId) {
-        // If no explicit joinYear, create a current renewal record for the active bill ID
-        await MembershipRenewal.create({
-          memberId: member._id,
-          serialNo: member.serialNo,
-          membershipYear: currentYear,
-          billId: activeBillId,
-          renewalDate: new Date(),
-          status: 'Active',
-          notes: `Membership registration for ${currentYear}`,
-        });
-        renewalsCreated++;
+      const validRenewalDocs = rawRenewals
+        .filter((r) => r.serialNo && r.membershipYear)
+        .map((r) => {
+          const memberId = r.memberId || serialToMemberMap.get(Number(r.serialNo));
+          if (!memberId) return null;
+
+          return {
+            memberId,
+            serialNo: Number(r.serialNo),
+            membershipYear: Number(r.membershipYear),
+            billId: r.billId ? String(r.billId).trim() : `BILL-${r.membershipYear}-${r.serialNo}`,
+            renewalDate: r.renewalDate ? new Date(r.renewalDate) : new Date(),
+            status: r.status || 'Active',
+            notes: r.notes || '',
+          };
+        })
+        .filter(Boolean);
+
+      if (validRenewalDocs.length > 0) {
+        await MembershipRenewal.insertMany(validRenewalDocs);
+        renewalsInserted = validRenewalDocs.length;
+        console.log(`[Seed] Successfully inserted ${renewalsInserted} renewal records.`);
       }
     }
 
     const finalMemberCount = await Member.countDocuments();
     const finalRenewalCount = await MembershipRenewal.countDocuments();
-    const finalAdminCount = await Admin.countDocuments();
 
     console.log(`\n========================================`);
     console.log(`[Seed] SUCCESSFUL SEED EXECUTION`);
     console.log(`========================================`);
-    console.log(`  - Admin User: ${adminUsername}`);
-    console.log(`  - Admins in DB: ${finalAdminCount}`);
-    console.log(`  - Members Seeded: ${finalMemberCount} (from member_management_members.json)`);
-    console.log(`  - Renewal Records Created: ${finalRenewalCount}`);
+    console.log(`  - Target File: ${jsonFilePath}`);
+    console.log(`  - Members Seeded: ${finalMemberCount}`);
+    console.log(`  - Renewal Records: ${finalRenewalCount}`);
     console.log(`========================================\n`);
 
+    await mongoose.disconnect();
     process.exit(0);
   } catch (error) {
     console.error('[Seed] Error seeding database:', error);

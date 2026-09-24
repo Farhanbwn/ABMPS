@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 export interface IAdmin extends Document {
   username: string;
   passwordHash: string;
+  passwordChangedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(password: string): Promise<boolean>;
@@ -21,6 +22,10 @@ const adminSchema = new Schema<IAdmin>(
     passwordHash: {
       type: String,
       required: true,
+    },
+    passwordChangedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
