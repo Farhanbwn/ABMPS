@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { Lock, User, Loader2 } from 'lucide-react';
+import { Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -87,7 +88,7 @@ export const LoginPage: React.FC = () => {
                   autoFocus
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="admin@abmps.com"
+                  placeholder="Enter username"
                   className="block w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#E3E3E3] rounded-md text-[#171717] placeholder-[#777777] focus:outline-none focus:border-[#C92812]"
                 />
               </div>
@@ -102,13 +103,22 @@ export const LoginPage: React.FC = () => {
                   <Lock className="h-4 w-4" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="block w-full pl-9 pr-3 py-2 text-sm bg-white border border-[#E3E3E3] rounded-md text-[#171717] placeholder-[#777777] focus:outline-none focus:border-[#C92812]"
+                  className="block w-full pl-9 pr-10 py-2 text-sm bg-white border border-[#E3E3E3] rounded-md text-[#171717] placeholder-[#777777] focus:outline-none focus:border-[#C92812]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#777777] hover:text-[#171717] focus:outline-none transition-colors"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
             </div>
 
