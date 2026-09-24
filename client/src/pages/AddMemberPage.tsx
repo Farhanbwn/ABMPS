@@ -29,8 +29,8 @@ const memberFormSchema = z.object({
   mobileNo: z
     .string()
     .optional()
-    .refine((val) => !val || /^[6-9]\d{9}$/.test(val) || val.length >= 7, {
-      message: 'Please enter a valid mobile number (e.g. 10 digits)',
+    .refine((val) => !val || /^\d{10}$/.test(val), {
+      message: 'Mobile number must be exactly 10 digits',
     }),
   gender: z.enum(['Male', 'Female', 'Other']).nullable().optional().or(z.literal('')),
   joinYear: z.number().optional().nullable(),
@@ -264,12 +264,16 @@ export const AddMemberPage: React.FC = () => {
               {/* Mobile Number - Optional */}
               <div>
                 <label className="block text-xs font-semibold text-[#171717] uppercase mb-1.5">
-                  Mobile Number <span className="text-[#777777] font-normal lowercase">(optional)</span>
+                  Mobile Number <span className="text-[#777777] font-normal lowercase">(optional - 10 digits)</span>
                 </label>
                 <input
                   type="tel"
-                  maxLength={15}
-                  {...register('mobileNo')}
+                  maxLength={10}
+                  {...register('mobileNo', {
+                    onChange: (e) => {
+                      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    },
+                  })}
                   placeholder="e.g. 9876543210"
                   className={`w-full px-3 py-2 text-sm bg-white border rounded-md font-mono text-[#171717] focus:outline-none ${
                     errors.mobileNo

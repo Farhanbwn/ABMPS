@@ -24,7 +24,14 @@ export const createMemberSchema = z
       .optional()
       .nullable(),
     address: z.string().trim().max(500, 'Address is too long').optional().default(''),
-    mobileNo: z.string().trim().max(25, 'Mobile number too long').optional().default(''),
+    mobileNo: z
+      .string()
+      .trim()
+      .optional()
+      .default('')
+      .refine((val) => !val || /^\d{10}$/.test(val), {
+        message: 'Mobile number must be exactly 10 digits',
+      }),
     gender: z.enum(['Male', 'Female', 'Other']).nullable().optional(),
     joinYear: z.coerce.number().int().min(1900).max(2100).nullable().optional(),
     membershipStatus: z.enum(['Active', 'Inactive']).optional().default('Active'),
@@ -42,7 +49,13 @@ export const updateMemberSchema = z
       .optional()
       .nullable(),
     address: z.string().trim().max(500).optional(),
-    mobileNo: z.string().trim().max(25).optional(),
+    mobileNo: z
+      .string()
+      .trim()
+      .optional()
+      .refine((val) => !val || /^\d{10}$/.test(val), {
+        message: 'Mobile number must be exactly 10 digits',
+      }),
     gender: z.enum(['Male', 'Female', 'Other']).nullable().optional(),
     joinYear: z.coerce.number().int().min(1900).max(2100).nullable().optional(),
     membershipStatus: z.enum(['Active', 'Inactive']).optional(),
