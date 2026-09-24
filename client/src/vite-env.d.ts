@@ -1,14 +1,19 @@
 /// <reference types="vite/client" />
 
 declare module 'write-excel-file/browser' {
+  export interface WriteXlsxFileResult {
+    toBlob: () => Promise<Blob>;
+    toFile: (fileName: string) => Promise<void>;
+  }
+
   export default function writeXlsxFile(
     data: any[],
-    options?: {
-      schema?: any[];
-      fileName?: string;
+    sheetOptions?: {
+      columns?: Array<{ width?: number }>;
       sheet?: string;
-      columns?: any[];
-    }
-  ): Promise<void>;
+      [key: string]: any;
+    },
+    options?: any
+  ): WriteXlsxFileResult;
 }
 

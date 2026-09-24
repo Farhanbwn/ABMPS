@@ -112,9 +112,16 @@ export const ExcelExportModal: React.FC<ExcelExportModalProps> = ({
       const today = new Date().toISOString().split('T')[0];
       const filename = `Members_${today}.xlsx`;
 
+      // Column widths for better readability in Excel
+      const columnsConfig = activeCols.map((col) => ({
+        width: col.key === 'address' ? 32 : (col.key === 'nameBengali' || col.key === 'nameEnglish' ? 24 : 16),
+      }));
+
+      // In write-excel-file v4, calling .toFile(filename) triggers direct browser download
       await writeXlsxFile([headerRow, ...dataRows], {
-        fileName: filename,
-      });
+        columns: columnsConfig,
+        sheet: 'Members',
+      }).toFile(filename);
 
       success('Excel exported successfully.');
       onClose();
