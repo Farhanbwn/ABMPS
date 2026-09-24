@@ -1,0 +1,247 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #C92812;
+  --primary-dark: #A91F0D;
+  --primary-light: #FBE9E6;
+
+  --white: #FFFFFF;
+  --background: #FAF9F7;
+  --surface: #FFFFFF;
+
+  --text-primary: #171717;
+  --text-secondary: #555555;
+  --text-muted: #777777;
+
+  --border: #E3E3E3;
+  --surface-muted: #F5F5F5;
+
+  --success: #16845B;
+  --success-light: #E8F5EF;
+
+  --warning: #C77A00;
+  --warning-light: #FFF4D6;
+
+  --danger: #C62828;
+  --danger-light: #FDECEC;
+
+  --focus-ring: rgba(201, 40, 18, 0.18);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+@layer base {
+  body {
+    background-color: #FAF9F7;
+    color: #171717;
+    font-family: 'Noto Sans Bengali', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Form controls focus standard from ABMPS Design System (Section 14) */
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: #C92812 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(201, 40, 18, 0.12) !important;
+  }
+
+  /* Hide number input stepper/spinner arrows (Chrome, Safari, Edge, Opera) */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Hide number input stepper/spinner arrows (Firefox) */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+/* Institutional Design System Component Utilities */
+.btn-primary {
+  background: #C92812;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.15s ease-in-out;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #A91F0D;
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #FFFFFF;
+  color: #171717;
+  border: 1px solid #E3E3E3;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease-in-out;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #F5F5F5;
+  border-color: #CFCFCF;
+}
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: #C62828;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: background-color 0.15s ease-in-out;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #A72020;
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Status Badges conforming to Section 13 */
+.status-badge-active {
+  background-color: #E8F5EF;
+  color: #16845B;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge-inactive {
+  background-color: #FDECEC;
+  color: #C62828;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge-pending {
+  background-color: #FFF4D6;
+  color: #C77A00;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #FAF9F7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5D5D5;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B0B0B0;
+}
+
+/* Print Styles - Official ABMPS Letterhead & Table styling (Section 21) */
+@media print {
+  /* Hide non-printable app UI */
+  nav,
+  aside,
+  header,
+  footer,
+  .no-print,
+  button,
+  .action-buttons,
+  .pagination-container,
+  .filter-bar,
+  .toast-container {
+    display: none !important;
+  }
+
+  body {
+    background-color: #FFFFFF !important;
+    color: #171717 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-size: 10pt !important;
+  }
+
+  #print-container {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    box-sizing: border-box !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  th, td {
+    border: 1px solid #E3E3E3 !important;
+    padding: 5px 8px !important;
+    text-align: left !important;
+  }
+
+  th {
+    background-color: #F5F5F5 !important;
+    font-weight: 700 !important;
+    color: #171717 !important;
+  }
+}
