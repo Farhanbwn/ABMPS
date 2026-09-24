@@ -50,6 +50,10 @@ export const authService = {
     const res = await api.get<ApiResponse<{ admin: any }>>('/auth/me');
     return res.data;
   },
+  changePassword: async (data: { currentPassword: string; newPassword: string; confirmPassword?: string }) => {
+    const res = await api.post<ApiResponse<void>>('/auth/change-password', data);
+    return res.data;
+  },
 };
 
 // Members API
