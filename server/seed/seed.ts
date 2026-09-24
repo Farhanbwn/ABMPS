@@ -42,13 +42,19 @@ async function seed() {
     console.log(`[Seed] Connecting to MongoDB: ${mongoUri.replace(/:([^@]+)@/, ':****@')}`);
     await mongoose.connect(mongoUri);
 
-    // Seed administrator account if not present
-    const adminUsername = (process.env.ADMIN_USERNAME || 'admin').toLowerCase().trim();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin12345';
+    // Seed administrator account strictly from environment variables
+    const adminUsername = process.env.ADMIN_USERNAME?.toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminUsername || !adminPassword) {
+      throw new Error(
+        'ADMIN_USERNAME and ADMIN_PASSWORD must both be defined in your .env file to seed the database.'
+      );
+    }
 
     let existingAdmin = await Admin.findOne({ username: adminUsername });
     if (!existingAdmin) {
-      console.log(`[Seed] Creating initial administrator account: ${adminUsername}`);
+      console.log(`[Seed] Creating initial administrator account from .env: ${adminUsername}`);
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash(adminPassword, salt);
       await Admin.create({
