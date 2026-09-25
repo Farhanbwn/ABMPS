@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "ts-node-dev --transpile-only seed/seed.ts",
+    "seed:admin": "ts-node-dev --transpile-only seed/seedAdmin.ts",
+    "seed:members": "ts-node-dev --transpile-only seed/seedMembers.ts",
     "test": "tsc && node --test dist/tests/security.test.js"
   },
   "dependencies": {

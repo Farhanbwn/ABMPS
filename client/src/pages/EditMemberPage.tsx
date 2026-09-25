@@ -3,9 +3,25 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { memberService } from '../services/api';
+import { memberService, renewalService } from '../services/api';
+import { Member, MembershipRenewal } from '../types';
 import { useToast } from '../context/ToastContext';
-import { ArrowLeft, Save, Loader2, Lock, Unlock, AlertTriangle } from 'lucide-react';
+import { EditRenewalModal } from '../components/members/EditRenewalModal';
+import { DeleteRenewalConfirmModal } from '../components/members/DeleteRenewalConfirmModal';
+import { RenewalModal } from '../components/members/RenewalModal';
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  FileText,
+  Plus,
+  Edit2,
+  Trash2,
+  RefreshCw,
+} from 'lucide-react';
 
 const currentYear = new Date().getFullYear();
 
@@ -46,6 +62,14 @@ export const EditMemberPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [allowSerialEdit, setAllowSerialEdit] = useState<boolean>(false);
 
+  // Renewal management state
+  const [member, setMember] = useState<Member | null>(null);
+  const [renewals, setRenewals] = useState<MembershipRenewal[]>([]);
+  const [isAddRenewalModalOpen, setIsAddRenewalModalOpen] = useState<boolean>(false);
+  const [selectedRenewalForEdit, setSelectedRenewalForEdit] = useState<MembershipRenewal | null>(null);
+  const [selectedRenewalForDelete, setSelectedRenewalForDelete] = useState<MembershipRenewal | null>(null);
+  const [isDeletingRenewal, setIsDeletingRenewal] = useState<boolean>(false);
+
   const {
     register,
     handleSubmit,
@@ -66,6 +90,9 @@ export const EditMemberPage: React.FC = () => {
       setIsLoading(true);
       const res = await memberService.getMemberById(memberId);
       const m = res.data.member;
+      setMember(m);
+      setRenewals(res.data.renewals || []);
+
       const formattedDob = m.dateOfBirth
         ? new Date(m.dateOfBirth).toISOString().split('T')[0]
         : '';
@@ -87,6 +114,21 @@ export const EditMemberPage: React.FC = () => {
       navigate('/members');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteRenewalConfirm = async () => {
+    if (!selectedRenewalForDelete || !id) return;
+    try {
+      setIsDeletingRenewal(true);
+      await renewalService.deleteRenewal(selectedRenewalForDelete._id);
+      success('Renewal record deleted successfully.');
+      setSelectedRenewalForDelete(null);
+      await fetchMemberDetails(id);
+    } catch (err: any) {
+      error(err.response?.data?.message || 'Failed to delete renewal record.');
+    } finally {
+      setIsDeletingRenewal(false);
     }
   };
 
@@ -140,6 +182,7 @@ export const EditMemberPage: React.FC = () => {
 
       {/* Main Form */}
       <form
+        id="edit-member-form"
         onSubmit={handleSubmit(onSubmit)}
         className="bg-white rounded-xl border border-[#E3E3E3] shadow-xs overflow-hidden"
       >
@@ -346,29 +389,157 @@ export const EditMemberPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </form>
 
-        {/* Footer */}
-        <div className="p-6 bg-[#FAF9F7] border-t border-[#E3E3E3] flex items-center justify-end gap-3">
-          <Link
-            to={id ? `/members/${id}` : '/members'}
-            className="btn-secondary"
-          >
-            Cancel
-          </Link>
+      {/* Membership Renewal History Section */}
+      <div className="bg-white rounded-xl border border-[#E3E3E3] shadow-xs overflow-hidden">
+        <div className="p-6 border-b border-[#E3E3E3] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAF9F7]">
+          <div>
+            <h3 className="text-sm font-bold text-[#171717] uppercase tracking-wider flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#C92812]" />
+              <span>Membership Renewal History</span>
+            </h3>
+            <p className="text-xs text-[#555555] mt-0.5">
+              Review, edit, or remove past annual renewals and billing records for this member.
+            </p>
+          </div>
           <button
-            type="submit"
-            disabled={isSubmitting}
-            className="btn-primary shadow-xs"
+            type="button"
+            onClick={() => setIsAddRenewalModalOpen(true)}
+            className="btn-primary text-xs !py-1.5 !px-3 shadow-xs self-start sm:self-auto"
           >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span>{isSubmitting ? 'Updating Member...' : 'Update Member'}</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Renewal</span>
           </button>
         </div>
-      </form>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr className="bg-[#F5F5F5] border-b border-[#E3E3E3] text-xs font-bold text-[#171717] uppercase tracking-wider">
+                <th className="px-5 py-3">Year</th>
+                <th className="px-5 py-3">Bill ID</th>
+                <th className="px-5 py-3">Renewal Date</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Notes</th>
+                <th className="px-5 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E3E3E3] text-[#171717]">
+              {renewals.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-[#777777] text-xs">
+                    No historical renewals recorded for this member yet.
+                  </td>
+                </tr>
+              ) : (
+                renewals.map((r) => (
+                  <tr key={r._id} className="hover:bg-[#FAF9F7] transition-colors bg-white">
+                    <td className="px-5 py-3 font-bold text-[#171717] font-mono">
+                      {r.membershipYear}
+                    </td>
+                    <td className="px-5 py-3 font-mono font-semibold text-[#C92812]">
+                      {r.billId}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-[#555555]">
+                      {new Date(r.renewalDate).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                          r.status === 'Active'
+                            ? 'bg-[#E8F5EF] text-[#16845B]'
+                            : 'bg-[#FDECEC] text-[#C62828]'
+                        }`}
+                      >
+                        <span className="text-[10px]">●</span>
+                        <span>{r.status}</span>
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-[#555555] max-w-xs truncate">
+                      {r.notes || '-'}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRenewalForEdit(r)}
+                          className="p-1.5 rounded-md text-[#555555] hover:text-[#171717] hover:bg-[#F5F5F5] border border-transparent hover:border-[#E3E3E3] transition-colors"
+                          title="Edit Renewal"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRenewalForDelete(r)}
+                          className="p-1.5 rounded-md text-[#C62828] hover:text-[#900000] hover:bg-[#FDECEC] border border-transparent hover:border-[#C62828]/20 transition-colors"
+                          title="Delete Renewal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Page Actions */}
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E3E3E3]">
+        <Link
+          to={id ? `/members/${id}` : '/members'}
+          className="btn-secondary"
+        >
+          Cancel
+        </Link>
+        <button
+          type="submit"
+          form="edit-member-form"
+          disabled={isSubmitting}
+          className="btn-primary shadow-xs"
+        >
+          {isSubmitting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          <span>{isSubmitting ? 'Updating Member...' : 'Update Member'}</span>
+        </button>
+      </div>
+
+      {/* Add Renewal Modal */}
+      <RenewalModal
+        isOpen={isAddRenewalModalOpen}
+        onClose={() => setIsAddRenewalModalOpen(false)}
+        onSuccess={() => id && fetchMemberDetails(id)}
+        member={member}
+      />
+
+      {/* Edit Renewal Modal */}
+      <EditRenewalModal
+        isOpen={Boolean(selectedRenewalForEdit)}
+        onClose={() => setSelectedRenewalForEdit(null)}
+        onSuccess={() => id && fetchMemberDetails(id)}
+        renewal={selectedRenewalForEdit}
+        member={member}
+      />
+
+      {/* Delete Renewal Modal */}
+      <DeleteRenewalConfirmModal
+        isOpen={Boolean(selectedRenewalForDelete)}
+        onClose={() => setSelectedRenewalForDelete(null)}
+        onConfirm={handleDeleteRenewalConfirm}
+        renewal={selectedRenewalForDelete}
+        member={member}
+        isLoading={isDeletingRenewal}
+      />
     </div>
   );
 };

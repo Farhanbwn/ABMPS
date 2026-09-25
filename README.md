@@ -88,9 +88,8 @@ MMS/
 │   ├── middleware/              # auth.ts (JWT guard), errorHandler.ts (standardized JSON error handler)
 │   ├── models/                  # Admin.ts, Member.ts, MembershipRenewal.ts
 │   ├── routes/                  # authRoutes, memberRoutes, renewalRoutes, dashboardRoutes
-│   ├── services/                # memberService, renewalService
 │   ├── utils/                   # jwt.ts (sign and verify)
-│   ├── seed/                    # seed.ts (seeds admin & 10 sample members with renewals)
+│   ├── seed/                    # seedAdmin.ts, seedMembers.ts, seed.ts (master runner)
 │   ├── server.ts                # Main Express application
 │   ├── tsconfig.json
 │   ├── .env.example
@@ -148,11 +147,21 @@ npm run install:all
 *(Or navigate to `server` and `client` individually and run `npm install`)*
 
 ### 3. Seed the Database
-Populates the administrator account and 10 realistic member records with Bengali & English details and renewal records:
-```bash
-npm run seed
-```
-Default credentials:
+You can seed both or choose to seed individually:
+- **Seed Both (Master)**:
+  ```bash
+  npm run seed
+  ```
+- **Seed Admin User Only** (`seed/seedAdmin.ts`):
+  ```bash
+  npm run seed:admin
+  ```
+- **Seed Member & Renewal Records Only** (`seed/seedMembers.ts`):
+  ```bash
+  npm run seed:members
+  ```
+
+Default credentials configured in `.env`:
 * **Username**: `admin`
 * **Password**: `admin12345`
 

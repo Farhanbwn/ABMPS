@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { memberService } from '../services/api';
+import { memberService, renewalService } from '../services/api';
 import { Member, MembershipRenewal } from '../types';
 import { useToast } from '../context/ToastContext';
 import { RenewalModal } from '../components/members/RenewalModal';
+import { EditRenewalModal } from '../components/members/EditRenewalModal';
+import { DeleteRenewalConfirmModal } from '../components/members/DeleteRenewalConfirmModal';
 import {
   ArrowLeft,
   Edit,
+  Edit2,
+  Trash2,
   RefreshCw,
   Printer,
   Calendar,
@@ -22,12 +26,15 @@ import {
 export const MemberDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { error } = useToast();
+  const { success, error } = useToast();
 
   const [member, setMember] = useState<Member | null>(null);
   const [renewals, setRenewals] = useState<MembershipRenewal[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRenewalModalOpen, setIsRenewalModalOpen] = useState<boolean>(false);
+  const [selectedRenewalForEdit, setSelectedRenewalForEdit] = useState<MembershipRenewal | null>(null);
+  const [selectedRenewalForDelete, setSelectedRenewalForDelete] = useState<MembershipRenewal | null>(null);
+  const [isDeletingRenewal, setIsDeletingRenewal] = useState<boolean>(false);
 
   const fetchDetails = async () => {
     if (!id) return;
@@ -50,6 +57,21 @@ export const MemberDetailsPage: React.FC = () => {
 
   const handlePrintProfile = () => {
     window.print();
+  };
+
+  const handleDeleteRenewalConfirm = async () => {
+    if (!selectedRenewalForDelete) return;
+    try {
+      setIsDeletingRenewal(true);
+      await renewalService.deleteRenewal(selectedRenewalForDelete._id);
+      success('Renewal record deleted successfully.');
+      setSelectedRenewalForDelete(null);
+      await fetchDetails();
+    } catch (err: any) {
+      error(err.response?.data?.message || 'Failed to delete renewal record.');
+    } finally {
+      setIsDeletingRenewal(false);
+    }
   };
 
   if (isLoading) {
@@ -274,12 +296,13 @@ export const MemberDetailsPage: React.FC = () => {
                 <th className="px-5 py-3">Renewal Date</th>
                 <th className="px-5 py-3">Status</th>
                 <th className="px-5 py-3">Notes</th>
+                <th className="px-5 py-3 text-right no-print">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E3E3E3] text-[#171717]">
               {renewals.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-[#777777]">
+                  <td colSpan={6} className="py-12 text-center text-[#777777]">
                     No historical renewals recorded for this member yet.
                   </td>
                 </tr>
@@ -314,6 +337,26 @@ export const MemberDetailsPage: React.FC = () => {
                     <td className="px-5 py-3.5 text-xs text-[#555555] max-w-xs truncate">
                       {r.notes || '-'}
                     </td>
+                    <td className="px-5 py-3.5 text-right no-print">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRenewalForEdit(r)}
+                          className="p-1.5 rounded-md text-[#555555] hover:text-[#171717] hover:bg-[#F5F5F5] border border-transparent hover:border-[#E3E3E3] transition-colors"
+                          title="Edit Renewal"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRenewalForDelete(r)}
+                          className="p-1.5 rounded-md text-[#C62828] hover:text-[#900000] hover:bg-[#FDECEC] border border-transparent hover:border-[#C62828]/20 transition-colors"
+                          title="Delete Renewal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -328,6 +371,25 @@ export const MemberDetailsPage: React.FC = () => {
         onClose={() => setIsRenewalModalOpen(false)}
         onSuccess={fetchDetails}
         member={member}
+      />
+
+      {/* Edit Renewal Modal */}
+      <EditRenewalModal
+        isOpen={Boolean(selectedRenewalForEdit)}
+        onClose={() => setSelectedRenewalForEdit(null)}
+        onSuccess={fetchDetails}
+        renewal={selectedRenewalForEdit}
+        member={member}
+      />
+
+      {/* Delete Renewal Modal */}
+      <DeleteRenewalConfirmModal
+        isOpen={Boolean(selectedRenewalForDelete)}
+        onClose={() => setSelectedRenewalForDelete(null)}
+        onConfirm={handleDeleteRenewalConfirm}
+        renewal={selectedRenewalForDelete}
+        member={member}
+        isLoading={isDeletingRenewal}
       />
     </div>
   );

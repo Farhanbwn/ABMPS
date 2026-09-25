@@ -212,12 +212,37 @@ export class RenewalService {
       throw new AppError('Renewal record not found', 404);
     }
 
+    if (updateData.membershipYear && updateData.membershipYear !== renewal.membershipYear) {
+      const targetYear = Number(updateData.membershipYear);
+      const duplicate = await MembershipRenewal.findOne({
+        memberId: renewal.memberId,
+        membershipYear: targetYear,
+        _id: { $ne: renewal._id },
+      });
+      if (duplicate) {
+        throw new AppError(`A renewal record for this member in year ${targetYear} already exists`, 409);
+      }
+      renewal.membershipYear = targetYear;
+    }
+
     if (updateData.billId) renewal.billId = updateData.billId.trim();
     if (updateData.renewalDate) renewal.renewalDate = new Date(updateData.renewalDate);
     if (updateData.status) renewal.status = updateData.status;
     if (updateData.notes !== undefined) renewal.notes = updateData.notes.trim();
 
     await renewal.save();
+
+    // Sync member active status and active bill ID if this is the latest renewal
+    const latestRenewal = await MembershipRenewal.findOne({ memberId: renewal.memberId })
+      .sort({ membershipYear: -1, renewalDate: -1 });
+
+    if (latestRenewal && latestRenewal._id.toString() === renewal._id.toString()) {
+      await Member.findByIdAndUpdate(renewal.memberId, {
+        activeBillId: renewal.billId,
+        membershipStatus: renewal.status,
+      });
+    }
+
     return renewal;
   }
 
@@ -232,6 +257,22 @@ export class RenewalService {
     if (!renewal) {
       throw new AppError('Renewal record not found', 404);
     }
+
+    // Sync member with remaining latest renewal (if any)
+    const latestRenewal = await MembershipRenewal.findOne({ memberId: renewal.memberId })
+      .sort({ membershipYear: -1, renewalDate: -1 });
+
+    if (latestRenewal) {
+      await Member.findByIdAndUpdate(renewal.memberId, {
+        activeBillId: latestRenewal.billId,
+        membershipStatus: latestRenewal.status,
+      });
+    } else {
+      await Member.findByIdAndUpdate(renewal.memberId, {
+        activeBillId: null,
+      });
+    }
+
     return renewal;
   }
 }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ApiResponse, Member, MembershipRenewal, DashboardStats } from '../types';
+import { ApiResponse, Member, MembershipRenewal, MembershipStatusType, DashboardStats } from '../types';
 
 const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const API_BASE_URL = rawBaseUrl.replace(/\/+$/, '');
@@ -144,6 +144,17 @@ export const renewalService = {
 
   getRenewalsByMember: async (memberId: string) => {
     const res = await api.get<ApiResponse<MembershipRenewal[]>>(`/renewals/member/${memberId}`);
+    return res.data;
+  },
+
+  updateRenewal: async (id: string, data: {
+    membershipYear?: number;
+    billId?: string;
+    renewalDate?: string | null;
+    status?: MembershipStatusType;
+    notes?: string;
+  }) => {
+    const res = await api.put<ApiResponse<MembershipRenewal>>(`/renewals/${id}`, data);
     return res.data;
   },
 

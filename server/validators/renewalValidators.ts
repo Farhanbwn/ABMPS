@@ -33,6 +33,7 @@ export const createRenewalSchema = z
 
 export const updateRenewalSchema = z
   .object({
+    membershipYear: z.coerce.number().int().min(1900).max(2100, 'Invalid membership year').optional(),
     billId: z.string().trim().min(1).max(100).optional(),
     renewalDate: z.union([z.string(), z.null()]).optional(),
     status: z.enum(['Active', 'Inactive']).optional(),

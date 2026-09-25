@@ -11,6 +11,8 @@
     "build": "npm run build:server && npm run build:client",
     "start": "npm --prefix server run start",
     "seed": "npm --prefix server run seed",
+    "seed:admin": "npm --prefix server run seed:admin",
+    "seed:members": "npm --prefix server run seed:members",
     "test": "npm --prefix server run test",
     "install:all": "npm install && npm --prefix server install && npm --prefix client install"
   },
