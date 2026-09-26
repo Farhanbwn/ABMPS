@@ -24,6 +24,8 @@ export interface MemberQueryParams {
   membershipYear?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  startSerial?: number;
+  endSerial?: number;
 }
 
 export class MemberService {
@@ -80,6 +82,12 @@ export class MemberService {
         status: 'Active',
       });
       query._id = { $in: renewedMemberIds };
+    }
+
+    if (params.startSerial !== undefined || params.endSerial !== undefined) {
+      query.serialNo = {};
+      if (params.startSerial !== undefined) query.serialNo.$gte = Number(params.startSerial);
+      if (params.endSerial !== undefined) query.serialNo.$lte = Number(params.endSerial);
     }
 
     // Sorting with whitelist protection
@@ -147,6 +155,12 @@ export class MemberService {
       query._id = { $in: renewedMemberIds };
     }
 
+    if (params.startSerial !== undefined || params.endSerial !== undefined) {
+      query.serialNo = {};
+      if (params.startSerial !== undefined) query.serialNo.$gte = Number(params.startSerial);
+      if (params.endSerial !== undefined) query.serialNo.$lte = Number(params.endSerial);
+    }
+
     const sortField = params.sortBy && ALLOWED_SORT_FIELDS.has(params.sortBy) ? params.sortBy : 'serialNo';
     const sortDirection = params.sortOrder === 'desc' ? -1 : 1;
 
@@ -195,7 +209,7 @@ export class MemberService {
    * Get next available serial number
    */
   static async getNextAvailableSerial(): Promise<number> {
-    const highestMember = await Member.findOne({}).sort({ serialNo: -1 }).select('serialNo').lean();
+    const highestMember = await Member.findOne({ isDeleted: false }).sort({ serialNo: -1 }).select('serialNo').lean();
     if (!highestMember || !highestMember.serialNo) {
       return 101; // Start from 101 as standard
     }
@@ -217,12 +231,12 @@ export class MemberService {
     const existing = await Member.findOne({ serialNo: data.serialNo });
     if (existing) {
       if (existing.isDeleted) {
-        throw new AppError(
-          `Serial No. ${data.serialNo} belongs to a previously deleted member. Please use a different Serial No. or contact database administrator.`,
-          409
-        );
+        // Clean up the previously soft-deleted member to free up the serial number
+        await Member.deleteOne({ _id: existing._id });
+        await MembershipRenewal.deleteMany({ memberId: existing._id });
+      } else {
+        throw new AppError(`Serial No. ${data.serialNo} is already assigned to an existing member.`, 409);
       }
-      throw new AppError(`Serial No. ${data.serialNo} is already assigned to an existing member.`, 409);
     }
 
     const member = new Member(data);
@@ -267,7 +281,13 @@ export class MemberService {
         _id: { $ne: id },
       });
       if (existing) {
-        throw new AppError(`Serial No. ${updateData.serialNo} is already in use by another member.`, 409);
+        if (existing.isDeleted) {
+          // Clean up the soft-deleted member to free up the serial number
+          await Member.deleteOne({ _id: existing._id });
+          await MembershipRenewal.deleteMany({ memberId: existing._id });
+        } else {
+          throw new AppError(`Serial No. ${updateData.serialNo} is already in use by another member.`, 409);
+        }
       }
       // Update serialNo in renewals as well
       await MembershipRenewal.updateMany(
@@ -296,6 +316,9 @@ export class MemberService {
     member.isDeleted = true;
     member.deletedAt = new Date();
     await member.save();
+
+    // Delete all membership renewals associated with this member
+    await MembershipRenewal.deleteMany({ memberId: member._id });
 
     return member;
   }

@@ -34,7 +34,7 @@ export const createMemberSchema = z
       }),
     gender: z.enum(['Male', 'Female', 'Other']).nullable().optional(),
     joinYear: z.coerce.number().int().min(1900).max(2100).nullable().optional(),
-    membershipStatus: z.enum(['Active', 'Inactive']).optional().default('Active'),
+    membershipStatus: z.enum(['Active', 'Inactive', 'Pending', 'Died']).optional().default('Active'),
     activeBillId: z.string().trim().max(100).nullable().optional(),
   })
   .strict();
@@ -58,7 +58,7 @@ export const updateMemberSchema = z
       }),
     gender: z.enum(['Male', 'Female', 'Other']).nullable().optional(),
     joinYear: z.coerce.number().int().min(1900).max(2100).nullable().optional(),
-    membershipStatus: z.enum(['Active', 'Inactive']).optional(),
+    membershipStatus: z.enum(['Active', 'Inactive', 'Pending', 'Died']).optional(),
     activeBillId: z.string().trim().max(100).nullable().optional(),
   })
   .strict();
@@ -72,6 +72,8 @@ export const memberQuerySchema = z
     gender: z.string().max(30).optional(),
     joinYear: z.coerce.number().int().min(1900).max(2100).optional(),
     membershipYear: z.coerce.number().int().min(1900).max(2100).optional(),
+    startSerial: z.coerce.number().int().min(1).optional(),
+    endSerial: z.coerce.number().int().min(1).optional(),
     sortBy: z
       .enum(['serialNo', 'nameEnglish', 'nameBengali', 'joinYear', 'membershipStatus', 'createdAt', 'updatedAt'])
       .optional()

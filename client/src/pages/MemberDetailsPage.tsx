@@ -147,6 +147,10 @@ export const MemberDetailsPage: React.FC = () => {
                   className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                     member.membershipStatus === 'Active'
                       ? 'bg-[#E8F5EF] text-[#16845B]'
+                      : member.membershipStatus === 'Pending'
+                      ? 'bg-[#FFF4D6] text-[#C77A00]'
+                      : member.membershipStatus === 'Died'
+                      ? 'bg-[#E3E3E3] text-[#555555]'
                       : 'bg-[#FDECEC] text-[#C62828]'
                   }`}
                 >
@@ -327,6 +331,10 @@ export const MemberDetailsPage: React.FC = () => {
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                           r.status === 'Active'
                             ? 'bg-[#E8F5EF] text-[#16845B]'
+                            : r.status === 'Pending'
+                            ? 'bg-[#FFF4D6] text-[#C77A00]'
+                            : r.status === 'Died'
+                            ? 'bg-[#E3E3E3] text-[#555555]'
                             : 'bg-[#FDECEC] text-[#C62828]'
                         }`}
                       >

@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
 export type GenderType = 'Male' | 'Female' | 'Other' | null;
-export type MembershipStatusType = 'Active' | 'Inactive';
+export type MembershipStatusType = 'Active' | 'Inactive' | 'Pending' | 'Died';
 
 export interface IMember extends Document {
   serialNo: number;
@@ -67,7 +67,7 @@ const memberSchema = new Schema<IMember>(
     },
     membershipStatus: {
       type: String,
-      enum: ['Active', 'Inactive'],
+      enum: ['Active', 'Inactive', 'Pending', 'Died'],
       default: 'Active',
       required: true,
       index: true,

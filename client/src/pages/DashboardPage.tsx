@@ -201,6 +201,10 @@ export const DashboardPage: React.FC = () => {
                       className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                         m.membershipStatus === 'Active'
                           ? 'bg-[#E8F5EF] text-[#16845B]'
+                          : m.membershipStatus === 'Pending'
+                          ? 'bg-[#FFF4D6] text-[#C77A00]'
+                          : m.membershipStatus === 'Died'
+                          ? 'bg-[#E3E3E3] text-[#555555]'
                           : 'bg-[#FDECEC] text-[#C62828]'
                       }`}
                     >

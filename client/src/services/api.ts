@@ -68,6 +68,8 @@ export const memberService = {
     membershipYear?: number | string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    startSerial?: number;
+    endSerial?: number;
   }) => {
     const res = await api.get<ApiResponse<Member[]>>('/members', { params });
     return res.data;
@@ -81,6 +83,8 @@ export const memberService = {
     membershipYear?: number | string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    startSerial?: number;
+    endSerial?: number;
   }) => {
     const res = await api.get<ApiResponse<Member[]>>('/members/all', { params });
     return res.data;

@@ -26,7 +26,7 @@ export const createRenewalSchema = z
     membershipYear: z.coerce.number().int().min(1900).max(2100, 'Invalid membership renewal year'),
     billId: z.string().trim().min(1, 'Bill ID is required').max(100, 'Bill ID too long'),
     renewalDate: z.union([z.string(), z.null()]).optional(),
-    status: z.enum(['Active', 'Inactive']).optional().default('Active'),
+    status: z.enum(['Active', 'Inactive', 'Pending', 'Died']).optional().default('Active'),
     notes: z.string().trim().max(500, 'Notes too long').optional().default(''),
   })
   .strict();
@@ -36,7 +36,7 @@ export const updateRenewalSchema = z
     membershipYear: z.coerce.number().int().min(1900).max(2100, 'Invalid membership year').optional(),
     billId: z.string().trim().min(1).max(100).optional(),
     renewalDate: z.union([z.string(), z.null()]).optional(),
-    status: z.enum(['Active', 'Inactive']).optional(),
+    status: z.enum(['Active', 'Inactive', 'Pending', 'Died']).optional(),
     notes: z.string().trim().max(500).optional(),
   })
   .strict();

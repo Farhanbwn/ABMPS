@@ -47,7 +47,7 @@ const editMemberFormSchema = z.object({
     .number({ invalid_type_error: 'Join year must be a number' })
     .optional()
     .nullable(),
-  membershipStatus: z.enum(['Active', 'Inactive', 'Pending']),
+  membershipStatus: z.enum(['Active', 'Inactive', 'Pending', 'Died']),
   activeBillId: z.string().optional(),
 });
 
@@ -373,6 +373,7 @@ export const EditMemberPage: React.FC = () => {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                   <option value="Pending">Pending</option>
+                  <option value="Died">Died</option>
                 </select>
               </div>
 
@@ -453,6 +454,10 @@ export const EditMemberPage: React.FC = () => {
                         className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                           r.status === 'Active'
                             ? 'bg-[#E8F5EF] text-[#16845B]'
+                            : r.status === 'Pending'
+                            ? 'bg-[#FFF4D6] text-[#C77A00]'
+                            : r.status === 'Died'
+                            ? 'bg-[#E3E3E3] text-[#555555]'
                             : 'bg-[#FDECEC] text-[#C62828]'
                         }`}
                       >

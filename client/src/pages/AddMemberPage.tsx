@@ -34,7 +34,7 @@ const memberFormSchema = z.object({
     }),
   gender: z.enum(['Male', 'Female', 'Other']).nullable().optional().or(z.literal('')),
   joinYear: z.number().optional().nullable(),
-  membershipStatus: z.enum(['Active', 'Inactive', 'Pending']),
+  membershipStatus: z.enum(['Active', 'Inactive', 'Pending', 'Died']),
   activeBillId: z.string().optional(),
 });
 
@@ -104,8 +104,8 @@ export const AddMemberPage: React.FC = () => {
         membershipStatus: data.membershipStatus || 'Active',
         activeBillId: data.activeBillId?.trim() || null,
       });
-      success(`Member #${res.data.serialNo} (${res.data.nameEnglish || res.data.nameBengali}) added successfully.`);
-      navigate(`/members/${res.data._id}`);
+      success(`${res.data.nameEnglish || res.data.nameBengali} is added Successfully`);
+      navigate('/members');
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Unable to save member. Please check the highlighted fields.';
       error(msg);
@@ -334,6 +334,7 @@ export const AddMemberPage: React.FC = () => {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                   <option value="Pending">Pending</option>
+                  <option value="Died">Died</option>
                 </select>
               </div>
 

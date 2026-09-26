@@ -44,7 +44,7 @@ const membershipRenewalSchema = new Schema<IMembershipRenewal>(
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive'],
+      enum: ['Active', 'Inactive', 'Pending', 'Died'],
       default: 'Active',
       required: true,
     },

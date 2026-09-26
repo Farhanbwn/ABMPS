@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Member } from '../../types';
-import { Printer, Eye, Columns } from 'lucide-react';
+import { Printer, Eye, Columns, Loader2 } from 'lucide-react';
+import { memberService } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
 interface PrintModalProps {
   isOpen: boolean;
@@ -47,6 +49,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   );
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('landscape');
   const [showPreview, setShowPreview] = useState<boolean>(false);
+  const [printScope, setPrintScope] = useState<'current' | 'range'>('current');
+  const [startSerial, setStartSerial] = useState<string>('');
+  const [endSerial, setEndSerial] = useState<string>('');
+  const [isPreparing, setIsPreparing] = useState<boolean>(false);
+  const { error } = useToast();
 
   const toggleColumn = (key: string) => {
     setSelectedColumns((prev) =>
@@ -62,45 +69,73 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     }
   };
 
-  const handleTriggerPrint = () => {
-    // Generate clean print window with custom CSS matching orientation and paper layout
-    const printWindow = window.open('', '_blank', 'width=1100,height=800');
-    if (!printWindow) {
-      alert('Pop-up blocked. Please allow popups to print member list.');
-      return;
-    }
+  const handleTriggerPrint = async () => {
+    try {
+      setIsPreparing(true);
+      let dataToPrint = members;
 
-const escapeHtml = (text: any): string => {
-  if (text === null || text === undefined) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-};
+      if (printScope === 'range') {
+        const start = parseInt(startSerial, 10);
+        const end = parseInt(endSerial, 10);
+        if (isNaN(start) || isNaN(end) || start > end) {
+          error('Please enter a valid serial number range.');
+          setIsPreparing(false);
+          return;
+        }
 
-    const visibleCols = ALL_COLUMNS.filter((c) => selectedColumns.includes(c.key));
-    const todayFormatted = new Date().toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+        const res = await memberService.getAllFilteredMembers({
+          startSerial: start,
+          endSerial: end,
+        });
+        
+        if (!res.data || res.data.length === 0) {
+          error('No members found in this serial range.');
+          setIsPreparing(false);
+          return;
+        }
+        
+        dataToPrint = res.data;
+      }
 
-    const rowsHtml = members
-      .map(
-        (m) => `
-        <tr>
-          ${visibleCols
-            .map((c) => {
-              const rawVal = c.render ? c.render(m) : ((m as any)[c.key] ?? '');
-              const safeVal = escapeHtml(rawVal);
-              return `<td class="${c.key === 'nameBengali' ? 'bengali-text' : ''}">${safeVal}</td>`;
-            })
-            .join('')}
-        </tr>`
-      )
-      .join('');
+      // Generate clean print window with custom CSS matching orientation and paper layout
+      const printWindow = window.open('', '_blank', 'width=1100,height=800');
+      if (!printWindow) {
+        alert('Pop-up blocked. Please allow popups to print member list.');
+        setIsPreparing(false);
+        return;
+      }
+
+      const escapeHtml = (text: any): string => {
+        if (text === null || text === undefined) return '';
+        return String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      };
+
+      const visibleCols = ALL_COLUMNS.filter((c) => selectedColumns.includes(c.key));
+      const todayFormatted = new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+
+      const rowsHtml = dataToPrint
+        .map(
+          (m) => `
+          <tr>
+            ${visibleCols
+              .map((c) => {
+                const rawVal = c.render ? c.render(m) : ((m as any)[c.key] ?? '');
+                const safeVal = escapeHtml(rawVal);
+                return `<td class="${c.key === 'nameBengali' ? 'bengali-text' : ''}">${safeVal}</td>`;
+              })
+              .join('')}
+          </tr>`
+        )
+        .join('');
 
     const headersHtml = visibleCols.map((c) => `<th>${escapeHtml(c.label)}</th>`).join('');
 
@@ -232,7 +267,7 @@ const escapeHtml = (text: any): string => {
           </table>
 
           <div class="footer-container">
-            <div>Total Members: <strong>${members.length}</strong> record(s)</div>
+            <div>Total Members: <strong>${dataToPrint.length}</strong> record(s)</div>
             <div>Burdwan Municipal Pensioners Samiti • Official Administrative Record</div>
           </div>
 
@@ -249,11 +284,91 @@ const escapeHtml = (text: any): string => {
     printWindow.document.open();
     printWindow.document.write(htmlContent);
     printWindow.document.close();
-  };
+  } catch (err) {
+    error('An error occurred while generating the print layout.');
+  } finally {
+    setIsPreparing(false);
+  }
+};
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Print Member List" maxWidth="2xl">
       <div className="space-y-5">
+        {/* Print Scope Selector */}
+        <div>
+          <label className="block text-xs font-bold text-[#171717] uppercase mb-2">
+            Print Scope
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label
+              className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                printScope === 'current'
+                  ? 'border-[#C92812] bg-[#FBE9E6]/50'
+                  : 'border-[#E3E3E3] bg-white hover:bg-[#FAF9F7]'
+              }`}
+            >
+              <input
+                type="radio"
+                name="printScope"
+                value="current"
+                checked={printScope === 'current'}
+                onChange={() => setPrintScope('current')}
+                className="mt-0.5 text-[#C92812] focus:ring-[#C92812]"
+              />
+              <div>
+                <p className="text-xs font-bold text-[#171717]">Current View</p>
+                <p className="text-[11px] text-[#555555]">
+                  Print currently loaded members ({members.length} records)
+                </p>
+              </div>
+            </label>
+
+            <div className="flex flex-col gap-2">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors h-full ${
+                  printScope === 'range'
+                    ? 'border-[#C92812] bg-[#FBE9E6]/50'
+                    : 'border-[#E3E3E3] bg-white hover:bg-[#FAF9F7]'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="printScope"
+                  value="range"
+                  checked={printScope === 'range'}
+                  onChange={() => setPrintScope('range')}
+                  className="mt-0.5 text-[#C92812] focus:ring-[#C92812]"
+                />
+                <div>
+                  <p className="text-xs font-bold text-[#171717]">Serial Number Range</p>
+                  <p className="text-[11px] text-[#555555] mb-2">
+                    Print members matching a specific serial range
+                  </p>
+                  {printScope === 'range' && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        placeholder="From"
+                        value={startSerial}
+                        onChange={(e) => setStartSerial(e.target.value)}
+                        className="w-20 text-xs px-2 py-1 border border-[#E3E3E3] rounded-md focus:border-[#C92812] focus:outline-none"
+                      />
+                      <span className="text-xs text-[#777]">-</span>
+                      <input
+                        type="number"
+                        placeholder="To"
+                        value={endSerial}
+                        onChange={(e) => setEndSerial(e.target.value)}
+                        className="w-20 text-xs px-2 py-1 border border-[#E3E3E3] rounded-md focus:border-[#C92812] focus:outline-none"
+                      />
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+
         {/* Column selection section */}
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -391,12 +506,17 @@ const escapeHtml = (text: any): string => {
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-[#E3E3E3]">
           <div className="text-xs text-[#555555]">
-            Printing <strong>{members.length}</strong> selected members
+            {printScope === 'current' ? (
+              <>Printing <strong>{members.length}</strong> selected members</>
+            ) : (
+              <>Printing custom serial range</>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onClose}
+              disabled={isPreparing}
               className="btn-secondary text-xs !py-2 !px-4"
             >
               Cancel
@@ -404,11 +524,17 @@ const escapeHtml = (text: any): string => {
             <button
               type="button"
               onClick={handleTriggerPrint}
-              disabled={selectedColumns.length === 0 || members.length === 0}
-              className="btn-primary text-xs !py-2 !px-4 shadow-xs"
+              disabled={selectedColumns.length === 0 || (printScope === 'current' && members.length === 0) || isPreparing}
+              className="btn-primary text-xs !py-2 !px-4 shadow-xs min-w-[140px] flex justify-center"
             >
-              <Printer className="w-4 h-4" />
-              <span>Print Member List</span>
+              {isPreparing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Printer className="w-4 h-4 mr-1.5" />
+                  <span>Print Member List</span>
+                </>
+              )}
             </button>
           </div>
         </div>

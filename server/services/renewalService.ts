@@ -172,7 +172,21 @@ export class RenewalService {
       const rawTerm = params.search.trim().slice(0, 100);
       const safeTerm = escapeRegex(rawTerm);
       const numTerm = Number(rawTerm);
-      const orConditions: any[] = [{ billId: { $regex: safeTerm, $options: 'i' } }];
+
+      // Find members that match the search term to include their renewals
+      const matchingMembers = await Member.find({
+        $or: [
+          { nameEnglish: { $regex: safeTerm, $options: 'i' } },
+          { nameBengali: { $regex: safeTerm, $options: 'i' } },
+          { mobileNo: { $regex: safeTerm, $options: 'i' } },
+        ]
+      }).select('_id');
+      const matchingMemberIds = matchingMembers.map(m => m._id);
+
+      const orConditions: any[] = [
+        { billId: { $regex: safeTerm, $options: 'i' } },
+        { memberId: { $in: matchingMemberIds } }
+      ];
       if (!isNaN(numTerm) && numTerm > 0) {
         orConditions.push({ serialNo: numTerm });
       }

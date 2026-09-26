@@ -148,6 +148,8 @@ export const EditRenewalModal: React.FC<EditRenewalModalProps> = ({
           >
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
+            <option value="Pending">Pending</option>
+            <option value="Died">Died</option>
           </select>
         </div>
 

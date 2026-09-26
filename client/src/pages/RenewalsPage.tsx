@@ -142,6 +142,7 @@ export const RenewalsPage: React.FC = () => {
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
               <option value="Pending">Pending</option>
+              <option value="Died">Died</option>
             </select>
           </div>
 
@@ -235,6 +236,10 @@ export const RenewalsPage: React.FC = () => {
                           className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                             r.status === 'Active'
                               ? 'bg-[#E8F5EF] text-[#16845B]'
+                              : r.status === 'Pending'
+                              ? 'bg-[#FFF4D6] text-[#C77A00]'
+                              : r.status === 'Died'
+                              ? 'bg-[#E3E3E3] text-[#555555]'
                               : 'bg-[#FDECEC] text-[#C62828]'
                           }`}
                         >

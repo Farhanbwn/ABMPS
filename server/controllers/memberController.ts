@@ -18,6 +18,8 @@ export const getMembers = async (
       membershipYear,
       sortBy,
       sortOrder,
+      startSerial,
+      endSerial,
     } = req.query;
 
     const result = await MemberService.getMembers({
@@ -30,6 +32,8 @@ export const getMembers = async (
       membershipYear: membershipYear ? Number(membershipYear) : undefined,
       sortBy: sortBy as string,
       sortOrder: (sortOrder as 'asc' | 'desc') || 'asc',
+      startSerial: startSerial ? Number(startSerial) : undefined,
+      endSerial: endSerial ? Number(endSerial) : undefined,
     });
 
     res.status(200).json({
@@ -49,7 +53,7 @@ export const getAllFilteredMembers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { search, status, gender, joinYear, membershipYear, sortBy, sortOrder } = req.query;
+    const { search, status, gender, joinYear, membershipYear, sortBy, sortOrder, startSerial, endSerial } = req.query;
 
     const members = await MemberService.getAllFilteredMembers({
       search: search as string,
@@ -59,6 +63,8 @@ export const getAllFilteredMembers = async (
       membershipYear: membershipYear ? Number(membershipYear) : undefined,
       sortBy: sortBy as string,
       sortOrder: (sortOrder as 'asc' | 'desc') || 'asc',
+      startSerial: startSerial ? Number(startSerial) : undefined,
+      endSerial: endSerial ? Number(endSerial) : undefined,
     });
 
     res.status(200).json({

@@ -1,5 +1,5 @@
 export type GenderType = 'Male' | 'Female' | 'Other' | null;
-export type MembershipStatusType = 'Active' | 'Inactive' | 'Pending';
+export type MembershipStatusType = 'Active' | 'Inactive' | 'Pending' | 'Died';
 
 export interface Admin {
   id: string;
