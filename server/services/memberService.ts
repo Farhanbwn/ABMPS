@@ -22,6 +22,8 @@ export interface MemberQueryParams {
   gender?: string;
   joinYear?: number;
   membershipYear?: number;
+  paidYears?: number[];
+  unpaidYears?: number[];
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   startSerial?: number;
@@ -74,14 +76,42 @@ export class MemberService {
       query.joinYear = Number(params.joinYear);
     }
 
-    // Membership renewal year filter
+    // Membership renewal year filter (legacy single year)
     if (params.membershipYear) {
       const year = Number(params.membershipYear);
       const renewedMemberIds = await MembershipRenewal.distinct('memberId', {
         membershipYear: year,
         status: 'Active',
       });
-      query._id = { $in: renewedMemberIds };
+      query._id = { ...query._id, $in: renewedMemberIds };
+    }
+
+    // Advanced Filter: Paid Years (MUST have paid ALL selected years)
+    if (params.paidYears && params.paidYears.length > 0) {
+      const membersWithAllPaidYears = await MembershipRenewal.aggregate([
+        { $match: { membershipYear: { $in: params.paidYears }, status: 'Active' } },
+        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
+        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.paidYears.length] } } }
+      ]);
+      const paidIds = membersWithAllPaidYears.map(r => r._id);
+      if (query._id && query._id.$in) {
+        // Intersect with existing $in if present
+        query._id.$in = query._id.$in.filter((id: any) => paidIds.some(pid => pid.equals(id)));
+      } else {
+        query._id = { ...query._id, $in: paidIds };
+      }
+    }
+
+    // Advanced Filter: Unpaid Years (If they missed ANY of the selected years, include them)
+    // To find who missed ANY of the years, we find who paid ALL of them and exclude them!
+    if (params.unpaidYears && params.unpaidYears.length > 0) {
+      const membersWithAllUnpaidYears = await MembershipRenewal.aggregate([
+        { $match: { membershipYear: { $in: params.unpaidYears }, status: 'Active' } },
+        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
+        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.unpaidYears.length] } } }
+      ]);
+      const excludedIds = membersWithAllUnpaidYears.map(r => r._id);
+      query._id = { ...query._id, $nin: excludedIds };
     }
 
     if (params.startSerial !== undefined || params.endSerial !== undefined) {
@@ -152,7 +182,33 @@ export class MemberService {
         membershipYear: year,
         status: 'Active',
       });
-      query._id = { $in: renewedMemberIds };
+      query._id = { ...query._id, $in: renewedMemberIds };
+    }
+
+    // Advanced Filter: Paid Years (MUST have paid ALL selected years)
+    if (params.paidYears && params.paidYears.length > 0) {
+      const membersWithAllPaidYears = await MembershipRenewal.aggregate([
+        { $match: { membershipYear: { $in: params.paidYears }, status: 'Active' } },
+        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
+        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.paidYears.length] } } }
+      ]);
+      const paidIds = membersWithAllPaidYears.map(r => r._id);
+      if (query._id && query._id.$in) {
+        query._id.$in = query._id.$in.filter((id: any) => paidIds.some(pid => pid.equals(id)));
+      } else {
+        query._id = { ...query._id, $in: paidIds };
+      }
+    }
+
+    // Advanced Filter: Unpaid Years (If they missed ANY of the selected years, include them)
+    if (params.unpaidYears && params.unpaidYears.length > 0) {
+      const membersWithAllUnpaidYears = await MembershipRenewal.aggregate([
+        { $match: { membershipYear: { $in: params.unpaidYears }, status: 'Active' } },
+        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
+        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.unpaidYears.length] } } }
+      ]);
+      const excludedIds = membersWithAllUnpaidYears.map(r => r._id);
+      query._id = { ...query._id, $nin: excludedIds };
     }
 
     if (params.startSerial !== undefined || params.endSerial !== undefined) {

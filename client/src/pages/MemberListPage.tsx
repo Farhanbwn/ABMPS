@@ -21,6 +21,9 @@ import {
   ChevronRight,
   Loader2,
   FilterX,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export const MemberListPage: React.FC = () => {
@@ -44,6 +47,9 @@ export const MemberListPage: React.FC = () => {
   const [joinYear, setJoinYear] = useState<string>('');
   const [membershipYear, setMembershipYear] = useState<string>('');
   const [availableJoinYears, setAvailableJoinYears] = useState<number[]>([]);
+  const [paidYears, setPaidYears] = useState<string>('');
+  const [unpaidYears, setUnpaidYears] = useState<string>('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<string>('serialNo');
@@ -85,6 +91,8 @@ export const MemberListPage: React.FC = () => {
         gender: gender === 'All' ? undefined : gender,
         joinYear: joinYear ? Number(joinYear) : undefined,
         membershipYear: membershipYear ? Number(membershipYear) : undefined,
+        paidYears: paidYears ? paidYears.split(',').map(y => Number(y.trim())) : undefined,
+        unpaidYears: unpaidYears ? unpaidYears.split(',').map(y => Number(y.trim())) : undefined,
         sortBy,
         sortOrder,
       });
@@ -106,6 +114,8 @@ export const MemberListPage: React.FC = () => {
     gender,
     joinYear,
     membershipYear,
+    paidYears,
+    unpaidYears,
     sortBy,
     sortOrder,
     error,
@@ -133,6 +143,8 @@ export const MemberListPage: React.FC = () => {
     setGender('All');
     setJoinYear('');
     setMembershipYear('');
+    setPaidYears('');
+    setUnpaidYears('');
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
@@ -153,7 +165,7 @@ export const MemberListPage: React.FC = () => {
   };
 
   const hasActiveFilters =
-    Boolean(search) || status !== 'All' || gender !== 'All' || Boolean(joinYear) || Boolean(membershipYear);
+    Boolean(search) || status !== 'All' || gender !== 'All' || Boolean(joinYear) || Boolean(membershipYear) || Boolean(paidYears) || Boolean(unpaidYears);
 
   return (
     <div className="space-y-5">
@@ -276,6 +288,16 @@ export const MemberListPage: React.FC = () => {
             />
           </div>
 
+          {/* Advanced Filters Toggle */}
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#171717] hover:text-[#C92812] transition-colors ml-2"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Advanced Filters</span>
+            {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
           {hasActiveFilters && (
             <button
               onClick={handleResetFilters}
@@ -286,6 +308,41 @@ export const MemberListPage: React.FC = () => {
             </button>
           )}
         </div>
+
+        {/* Advanced Filters Section */}
+        {showAdvancedFilters && (
+          <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-[#E3E3E3] bg-[#FAF9F7] p-3 rounded-md">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-xs font-bold text-[#171717] w-24">Paid Years:</label>
+              <input
+                type="text"
+                placeholder="e.g. 2023, 2024"
+                value={paidYears}
+                onChange={(e) => {
+                  setPaidYears(e.target.value);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="flex-1 sm:w-48 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#16845B] text-[#171717]"
+              />
+              <span className="text-[10px] text-[#777777] hidden sm:block">Paid ALL these years</span>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <label className="text-xs font-bold text-[#171717] w-24">Unpaid Years:</label>
+              <input
+                type="text"
+                placeholder="e.g. 2024, 2025"
+                value={unpaidYears}
+                onChange={(e) => {
+                  setUnpaidYears(e.target.value);
+                  setPagination((prev) => ({ ...prev, page: 1 }));
+                }}
+                className="flex-1 sm:w-48 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#C92812] text-[#171717]"
+              />
+              <span className="text-[10px] text-[#777777] hidden sm:block">Missed ANY of these years</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Members Table */}
@@ -417,15 +474,14 @@ export const MemberListPage: React.FC = () => {
                     {/* Status */}
                     <td className="px-4 py-3.5">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          member.membershipStatus === 'Active'
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${member.membershipStatus === 'Active'
                             ? 'bg-[#E8F5EF] text-[#16845B]'
                             : member.membershipStatus === 'Pending'
-                            ? 'bg-[#FFF4D6] text-[#C77A00]'
-                            : member.membershipStatus === 'Died'
-                            ? 'bg-[#E3E3E3] text-[#555555]'
-                            : 'bg-[#FDECEC] text-[#C62828]'
-                        }`}
+                              ? 'bg-[#FFF4D6] text-[#C77A00]'
+                              : member.membershipStatus === 'Died'
+                                ? 'bg-[#E3E3E3] text-[#555555]'
+                                : 'bg-[#FDECEC] text-[#C62828]'
+                          }`}
                       >
                         <span className="text-[10px]">●</span>
                         <span>{member.membershipStatus || 'Inactive'}</span>
@@ -570,6 +626,8 @@ export const MemberListPage: React.FC = () => {
           gender,
           joinYear,
           membershipYear,
+          paidYears,
+          unpaidYears,
         }}
       />
     </div>

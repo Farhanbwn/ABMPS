@@ -2,6 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import { MemberService } from '../services/memberService';
 import { AppError } from '../middleware/errorHandler';
 
+const parseNumberArray = (val: any): number[] | undefined => {
+  if (typeof val === 'string' && val.trim() !== '') {
+    return val.split(',').map(n => Number(n.trim())).filter(n => !isNaN(n));
+  }
+  if (Array.isArray(val)) {
+    return val.map(n => Number(n)).filter(n => !isNaN(n));
+  }
+  return undefined;
+};
+
 export const getMembers = async (
   req: Request,
   res: Response,
@@ -16,6 +26,8 @@ export const getMembers = async (
       gender,
       joinYear,
       membershipYear,
+      paidYears,
+      unpaidYears,
       sortBy,
       sortOrder,
       startSerial,
@@ -30,6 +42,8 @@ export const getMembers = async (
       gender: gender as string,
       joinYear: joinYear ? Number(joinYear) : undefined,
       membershipYear: membershipYear ? Number(membershipYear) : undefined,
+      paidYears: parseNumberArray(paidYears),
+      unpaidYears: parseNumberArray(unpaidYears),
       sortBy: sortBy as string,
       sortOrder: (sortOrder as 'asc' | 'desc') || 'asc',
       startSerial: startSerial ? Number(startSerial) : undefined,
@@ -53,7 +67,7 @@ export const getAllFilteredMembers = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { search, status, gender, joinYear, membershipYear, sortBy, sortOrder, startSerial, endSerial } = req.query;
+    const { search, status, gender, joinYear, membershipYear, paidYears, unpaidYears, sortBy, sortOrder, startSerial, endSerial } = req.query;
 
     const members = await MemberService.getAllFilteredMembers({
       search: search as string,
@@ -61,6 +75,8 @@ export const getAllFilteredMembers = async (
       gender: gender as string,
       joinYear: joinYear ? Number(joinYear) : undefined,
       membershipYear: membershipYear ? Number(membershipYear) : undefined,
+      paidYears: parseNumberArray(paidYears),
+      unpaidYears: parseNumberArray(unpaidYears),
       sortBy: sortBy as string,
       sortOrder: (sortOrder as 'asc' | 'desc') || 'asc',
       startSerial: startSerial ? Number(startSerial) : undefined,
