@@ -68,6 +68,7 @@ export const memberService = {
     membershipYear?: number | string;
     paidYears?: string | number[];
     unpaidYears?: string | number[];
+    unpaidMatchMode?: 'all' | 'any';
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     startSerial?: number;
@@ -85,6 +86,7 @@ export const memberService = {
     membershipYear?: number | string;
     paidYears?: string | number[];
     unpaidYears?: string | number[];
+    unpaidMatchMode?: 'all' | 'any';
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     startSerial?: number;

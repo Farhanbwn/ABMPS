@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { memberService } from '../services/api';
 import { Member, PaginationMeta } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -26,34 +26,85 @@ import {
   ChevronUp,
 } from 'lucide-react';
 
+// In-memory cache for instant zero-flicker restoration on back-navigation
+interface CachedMembersState {
+  cacheKey: string;
+  members: Member[];
+  pagination: PaginationMeta;
+}
+
+let memoryMembersCache: CachedMembersState | null = null;
+
+const buildCacheKey = (params: Record<string, any>) => {
+  return JSON.stringify(params);
+};
+
 export const MemberListPage: React.FC = () => {
   const { success, error } = useToast();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Members & Pagination state
-  const [members, setMembers] = useState<Member[]>([]);
-  const [pagination, setPagination] = useState<PaginationMeta>({
-    page: 1,
-    limit: 25,
-    total: 0,
-    totalPages: 1,
+  // Read initial values from URL searchParams so back-navigation restores exact search
+  const initialSearch = searchParams.get('search') || '';
+  const initialStatus = searchParams.get('status') || 'All';
+  const initialGender = searchParams.get('gender') || 'All';
+  const initialJoinYear = searchParams.get('joinYear') || '';
+  const initialMembershipYear = searchParams.get('membershipYear') || '';
+  const initialPaidYears = searchParams.get('paidYears') || '';
+  const initialUnpaidYears = searchParams.get('unpaidYears') || '';
+  const initialPage = Number(searchParams.get('page')) || 1;
+  const initialSortBy = searchParams.get('sortBy') || 'serialNo';
+  const initialSortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
+
+  // Compute key to check memory cache
+  const initialQueryKey = buildCacheKey({
+    search: initialSearch,
+    status: initialStatus === 'All' ? undefined : initialStatus,
+    gender: initialGender === 'All' ? undefined : initialGender,
+    joinYear: initialJoinYear || undefined,
+    membershipYear: initialMembershipYear || undefined,
+    paidYears: initialPaidYears || undefined,
+    unpaidYears: initialUnpaidYears || undefined,
+    page: initialPage,
+    sortBy: initialSortBy,
+    sortOrder: initialSortOrder,
   });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  const hasValidCache = Boolean(memoryMembersCache && memoryMembersCache.cacheKey === initialQueryKey);
+
+  // Members & Pagination state (instant from memory cache if returning from profile)
+  const [members, setMembers] = useState<Member[]>(hasValidCache ? memoryMembersCache!.members : []);
+  const [pagination, setPagination] = useState<PaginationMeta>(
+    hasValidCache
+      ? memoryMembersCache!.pagination
+      : {
+          page: initialPage,
+          limit: 25,
+          total: 0,
+          totalPages: 1,
+        }
+  );
+  const [isLoading, setIsLoading] = useState<boolean>(!hasValidCache);
 
   // Filters state
-  const [search, setSearch] = useState<string>('');
-  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
-  const [status, setStatus] = useState<string>('All');
-  const [gender, setGender] = useState<string>('All');
-  const [joinYear, setJoinYear] = useState<string>('');
-  const [membershipYear, setMembershipYear] = useState<string>('');
+  const [search, setSearch] = useState<string>(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState<string>(initialSearch);
+  const [status, setStatus] = useState<string>(initialStatus);
+  const [gender, setGender] = useState<string>(initialGender);
+  const [joinYear, setJoinYear] = useState<string>(initialJoinYear);
+  const [membershipYear, setMembershipYear] = useState<string>(initialMembershipYear);
   const [availableJoinYears, setAvailableJoinYears] = useState<number[]>([]);
-  const [paidYears, setPaidYears] = useState<string>('');
-  const [unpaidYears, setUnpaidYears] = useState<string>('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
+  const [paidYears, setPaidYears] = useState<string>(initialPaidYears);
+  const [debouncedPaidYears, setDebouncedPaidYears] = useState<string>(initialPaidYears);
+  const [unpaidYears, setUnpaidYears] = useState<string>(initialUnpaidYears);
+  const [debouncedUnpaidYears, setDebouncedUnpaidYears] = useState<string>(initialUnpaidYears);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(
+    Boolean(initialPaidYears || initialUnpaidYears)
+  );
 
   // Sorting state
-  const [sortBy, setSortBy] = useState<string>('serialNo');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<string>(initialSortBy);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(initialSortOrder);
 
   // Modals state
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -62,14 +113,119 @@ export const MemberListPage: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [memberToRenew, setMemberToRenew] = useState<Member | null>(null);
 
+  // Flags to avoid resetting page=1 on initial mount when returning to page > 1
+  const isSearchMount = useRef(true);
+  const isPaidYearsMount = useRef(true);
+  const isUnpaidYearsMount = useRef(true);
+
   // Debounce search input
   useEffect(() => {
+    if (isSearchMount.current) {
+      isSearchMount.current = false;
+      return;
+    }
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       setPagination((prev) => ({ ...prev, page: 1 }));
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Debounce paidYears input
+  useEffect(() => {
+    if (isPaidYearsMount.current) {
+      isPaidYearsMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedPaidYears(paidYears);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [paidYears]);
+
+  // Debounce unpaidYears input
+  useEffect(() => {
+    if (isUnpaidYearsMount.current) {
+      isUnpaidYearsMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedUnpaidYears(unpaidYears);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [unpaidYears]);
+
+  // Synchronize filter & search state with browser URL search parameters
+  useEffect(() => {
+    const params: Record<string, string> = {};
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (status && status !== 'All') params.status = status;
+    if (gender && gender !== 'All') params.gender = gender;
+    if (joinYear) params.joinYear = joinYear;
+    if (membershipYear) params.membershipYear = membershipYear;
+    if (debouncedPaidYears) params.paidYears = debouncedPaidYears;
+    if (debouncedUnpaidYears) params.unpaidYears = debouncedUnpaidYears;
+    if (pagination.page > 1) params.page = String(pagination.page);
+    if (sortBy !== 'serialNo') params.sortBy = sortBy;
+    if (sortOrder !== 'asc') params.sortOrder = sortOrder;
+
+    setSearchParams(params, { replace: true });
+  }, [
+    debouncedSearch,
+    status,
+    gender,
+    joinYear,
+    membershipYear,
+    debouncedPaidYears,
+    debouncedUnpaidYears,
+    pagination.page,
+    sortBy,
+    sortOrder,
+    setSearchParams,
+  ]);
+
+  // Sync state if browser back/forward button changes URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    const urlStatus = searchParams.get('status') || 'All';
+    const urlGender = searchParams.get('gender') || 'All';
+    const urlJoinYear = searchParams.get('joinYear') || '';
+    const urlMembershipYear = searchParams.get('membershipYear') || '';
+    const urlPaidYears = searchParams.get('paidYears') || '';
+    const urlUnpaidYears = searchParams.get('unpaidYears') || '';
+    const urlPage = Number(searchParams.get('page')) || 1;
+    const urlSortBy = searchParams.get('sortBy') || 'serialNo';
+    const urlSortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
+
+    setSearch((prev) => (prev !== urlSearch ? urlSearch : prev));
+    setDebouncedSearch((prev) => (prev !== urlSearch ? urlSearch : prev));
+    setStatus((prev) => (prev !== urlStatus ? urlStatus : prev));
+    setGender((prev) => (prev !== urlGender ? urlGender : prev));
+    setJoinYear((prev) => (prev !== urlJoinYear ? urlJoinYear : prev));
+    setMembershipYear((prev) => (prev !== urlMembershipYear ? urlMembershipYear : prev));
+    setPaidYears((prev) => (prev !== urlPaidYears ? urlPaidYears : prev));
+    setDebouncedPaidYears((prev) => (prev !== urlPaidYears ? urlPaidYears : prev));
+    setUnpaidYears((prev) => (prev !== urlUnpaidYears ? urlUnpaidYears : prev));
+    setDebouncedUnpaidYears((prev) => (prev !== urlUnpaidYears ? urlUnpaidYears : prev));
+    setPagination((prev) => (prev.page !== urlPage ? { ...prev, page: urlPage } : prev));
+    setSortBy((prev) => (prev !== urlSortBy ? urlSortBy : prev));
+    setSortOrder((prev) => (prev !== urlSortOrder ? urlSortOrder : prev));
+    if (urlPaidYears || urlUnpaidYears) {
+      setShowAdvancedFilters(true);
+    }
+  }, [searchParams]);
+
+  // Helper to parse clean 4-digit years array
+  const parseValidYears = (input: string): number[] | undefined => {
+    if (!input || !input.trim()) return undefined;
+    const years = input
+      .split(',')
+      .map((y) => Number(y.trim()))
+      .filter((n) => !isNaN(n) && n >= 1900 && n <= 2100);
+    return years.length > 0 ? years : undefined;
+  };
 
   // Load distinct join years for filter
   useEffect(() => {
@@ -81,8 +237,27 @@ export const MemberListPage: React.FC = () => {
 
   // Fetch members from server
   const fetchMembers = useCallback(async () => {
-    try {
+    const queryKey = buildCacheKey({
+      search: debouncedSearch,
+      status: status === 'All' ? undefined : status,
+      gender: gender === 'All' ? undefined : gender,
+      joinYear: joinYear || undefined,
+      membershipYear: membershipYear || undefined,
+      paidYears: debouncedPaidYears || undefined,
+      unpaidYears: debouncedUnpaidYears || undefined,
+      page: pagination.page,
+      sortBy,
+      sortOrder,
+    });
+
+    // If cache already has data for this exact query, don't show full-screen loader flicker
+    if (memoryMembersCache && memoryMembersCache.cacheKey === queryKey && members.length > 0) {
+      setIsLoading(false);
+    } else {
       setIsLoading(true);
+    }
+
+    try {
       const res = await memberService.getMembers({
         page: pagination.page,
         limit: pagination.limit,
@@ -91,8 +266,9 @@ export const MemberListPage: React.FC = () => {
         gender: gender === 'All' ? undefined : gender,
         joinYear: joinYear ? Number(joinYear) : undefined,
         membershipYear: membershipYear ? Number(membershipYear) : undefined,
-        paidYears: paidYears ? paidYears.split(',').map(y => Number(y.trim())) : undefined,
-        unpaidYears: unpaidYears ? unpaidYears.split(',').map(y => Number(y.trim())) : undefined,
+        paidYears: parseValidYears(debouncedPaidYears),
+        unpaidYears: parseValidYears(debouncedUnpaidYears),
+        unpaidMatchMode: 'all',
         sortBy,
         sortOrder,
       });
@@ -101,6 +277,12 @@ export const MemberListPage: React.FC = () => {
       if (res.pagination) {
         setPagination(res.pagination);
       }
+      // Update memory cache
+      memoryMembersCache = {
+        cacheKey: queryKey,
+        members: res.data,
+        pagination: res.pagination || pagination,
+      };
     } catch (err: any) {
       error(err.response?.data?.message || 'Failed to fetch members.');
     } finally {
@@ -114,8 +296,8 @@ export const MemberListPage: React.FC = () => {
     gender,
     joinYear,
     membershipYear,
-    paidYears,
-    unpaidYears,
+    debouncedPaidYears,
+    debouncedUnpaidYears,
     sortBy,
     sortOrder,
     error,
@@ -139,13 +321,18 @@ export const MemberListPage: React.FC = () => {
   // Reset all filters
   const handleResetFilters = () => {
     setSearch('');
+    setDebouncedSearch('');
     setStatus('All');
     setGender('All');
     setJoinYear('');
     setMembershipYear('');
     setPaidYears('');
+    setDebouncedPaidYears('');
     setUnpaidYears('');
+    setDebouncedUnpaidYears('');
     setPagination((prev) => ({ ...prev, page: 1 }));
+    setSearchParams({}, { replace: true });
+    memoryMembersCache = null;
   };
 
   // Soft delete execution
@@ -301,7 +488,7 @@ export const MemberListPage: React.FC = () => {
           {hasActiveFilters && (
             <button
               onClick={handleResetFilters}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#C62828] hover:underline ml-auto"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-[#C62828] hover:underline ml-2"
             >
               <FilterX className="w-3.5 h-3.5" />
               <span>Reset Filters</span>
@@ -311,35 +498,31 @@ export const MemberListPage: React.FC = () => {
 
         {/* Advanced Filters Section */}
         {showAdvancedFilters && (
-          <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-[#E3E3E3] bg-[#FAF9F7] p-3 rounded-md">
+          <div className="flex flex-wrap items-center gap-6 pt-3 border-t border-[#E3E3E3] bg-[#FAF9F7] p-3 rounded-md">
+            {/* Paid Years */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label className="text-xs font-bold text-[#171717] w-24">Paid Years:</label>
+              <label className="text-xs font-bold text-[#171717] w-20 shrink-0">Paid Years:</label>
               <input
                 type="text"
                 placeholder="e.g. 2023, 2024"
                 value={paidYears}
-                onChange={(e) => {
-                  setPaidYears(e.target.value);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="flex-1 sm:w-48 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#16845B] text-[#171717]"
+                onChange={(e) => setPaidYears(e.target.value)}
+                className="w-36 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#16845B] text-[#171717]"
               />
               <span className="text-[10px] text-[#777777] hidden sm:block">Paid ALL these years</span>
             </div>
 
+            {/* Unpaid Years */}
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label className="text-xs font-bold text-[#171717] w-24">Unpaid Years:</label>
+              <label className="text-xs font-bold text-[#171717] w-24 shrink-0">Unpaid Years:</label>
               <input
                 type="text"
                 placeholder="e.g. 2024, 2025"
                 value={unpaidYears}
-                onChange={(e) => {
-                  setUnpaidYears(e.target.value);
-                  setPagination((prev) => ({ ...prev, page: 1 }));
-                }}
-                className="flex-1 sm:w-48 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#C92812] text-[#171717]"
+                onChange={(e) => setUnpaidYears(e.target.value)}
+                className="w-36 text-xs bg-white border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#C92812] text-[#171717]"
               />
-              <span className="text-[10px] text-[#777777] hidden sm:block">Missed ANY of these years</span>
+              <span className="text-[10px] text-[#777777] hidden sm:block">Missed ALL these years</span>
             </div>
           </div>
         )}
@@ -446,6 +629,7 @@ export const MemberListPage: React.FC = () => {
                       <div className="font-semibold text-[#171717] text-sm">
                         <Link
                           to={`/members/${member._id}`}
+                          state={{ from: location.pathname + location.search }}
                           className="hover:text-[#C92812] transition-colors"
                         >
                           {member.nameEnglish || member.nameBengali}
@@ -500,6 +684,7 @@ export const MemberListPage: React.FC = () => {
                       <div className="inline-flex items-center gap-1">
                         <Link
                           to={`/members/${member._id}`}
+                          state={{ from: location.pathname + location.search }}
                           title="View Profile"
                           className="p-1.5 rounded-md text-[#555555] hover:text-[#C92812] hover:bg-[#FAF9F7] transition-colors"
                         >
@@ -507,6 +692,7 @@ export const MemberListPage: React.FC = () => {
                         </Link>
                         <Link
                           to={`/members/${member._id}/edit`}
+                          state={{ from: location.pathname + location.search }}
                           title="Edit Member"
                           className="p-1.5 rounded-md text-[#555555] hover:text-[#C92812] hover:bg-[#FAF9F7] transition-colors"
                         >

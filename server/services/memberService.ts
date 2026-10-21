@@ -24,6 +24,7 @@ export interface MemberQueryParams {
   membershipYear?: number;
   paidYears?: number[];
   unpaidYears?: number[];
+  unpaidMatchMode?: 'all' | 'any';
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   startSerial?: number;
@@ -76,42 +77,39 @@ export class MemberService {
       query.joinYear = Number(params.joinYear);
     }
 
-    // Membership renewal year filter (legacy single year)
+    // Membership renewal year filter (single year: includes joiners and renewals)
     if (params.membershipYear) {
       const year = Number(params.membershipYear);
       const renewedMemberIds = await MembershipRenewal.distinct('memberId', {
         membershipYear: year,
         status: 'Active',
       });
-      query._id = { ...query._id, $in: renewedMemberIds };
+      const joinedMemberIds = await Member.distinct('_id', {
+        joinYear: year,
+        isDeleted: false,
+      });
+      const eligibleIds = [
+        ...new Set([
+          ...renewedMemberIds.map((id) => id.toString()),
+          ...joinedMemberIds.map((id) => id.toString()),
+        ]),
+      ].map((id) => new mongoose.Types.ObjectId(id));
+      query._id = MemberService.intersectMemberIds(query._id, eligibleIds);
     }
 
     // Advanced Filter: Paid Years (MUST have paid ALL selected years)
     if (params.paidYears && params.paidYears.length > 0) {
-      const membersWithAllPaidYears = await MembershipRenewal.aggregate([
-        { $match: { membershipYear: { $in: params.paidYears }, status: 'Active' } },
-        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
-        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.paidYears.length] } } }
-      ]);
-      const paidIds = membersWithAllPaidYears.map(r => r._id);
-      if (query._id && query._id.$in) {
-        // Intersect with existing $in if present
-        query._id.$in = query._id.$in.filter((id: any) => paidIds.some(pid => pid.equals(id)));
-      } else {
-        query._id = { ...query._id, $in: paidIds };
-      }
+      const paidIds = await MemberService.resolvePaidYearsMemberIds(params.paidYears);
+      query._id = MemberService.intersectMemberIds(query._id, paidIds);
     }
 
-    // Advanced Filter: Unpaid Years (If they missed ANY of the selected years, include them)
-    // To find who missed ANY of the years, we find who paid ALL of them and exclude them!
+    // Advanced Filter: Unpaid Years (Missed ALL or Missed ANY of applicable years)
     if (params.unpaidYears && params.unpaidYears.length > 0) {
-      const membersWithAllUnpaidYears = await MembershipRenewal.aggregate([
-        { $match: { membershipYear: { $in: params.unpaidYears }, status: 'Active' } },
-        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
-        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.unpaidYears.length] } } }
-      ]);
-      const excludedIds = membersWithAllUnpaidYears.map(r => r._id);
-      query._id = { ...query._id, $nin: excludedIds };
+      const unpaidIds = await MemberService.resolveUnpaidYearsMemberIds(
+        params.unpaidYears,
+        params.unpaidMatchMode || 'all'
+      );
+      query._id = MemberService.intersectMemberIds(query._id, unpaidIds);
     }
 
     if (params.startSerial !== undefined || params.endSerial !== undefined) {
@@ -182,33 +180,32 @@ export class MemberService {
         membershipYear: year,
         status: 'Active',
       });
-      query._id = { ...query._id, $in: renewedMemberIds };
+      const joinedMemberIds = await Member.distinct('_id', {
+        joinYear: year,
+        isDeleted: false,
+      });
+      const eligibleIds = [
+        ...new Set([
+          ...renewedMemberIds.map((id) => id.toString()),
+          ...joinedMemberIds.map((id) => id.toString()),
+        ]),
+      ].map((id) => new mongoose.Types.ObjectId(id));
+      query._id = MemberService.intersectMemberIds(query._id, eligibleIds);
     }
 
     // Advanced Filter: Paid Years (MUST have paid ALL selected years)
     if (params.paidYears && params.paidYears.length > 0) {
-      const membersWithAllPaidYears = await MembershipRenewal.aggregate([
-        { $match: { membershipYear: { $in: params.paidYears }, status: 'Active' } },
-        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
-        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.paidYears.length] } } }
-      ]);
-      const paidIds = membersWithAllPaidYears.map(r => r._id);
-      if (query._id && query._id.$in) {
-        query._id.$in = query._id.$in.filter((id: any) => paidIds.some(pid => pid.equals(id)));
-      } else {
-        query._id = { ...query._id, $in: paidIds };
-      }
+      const paidIds = await MemberService.resolvePaidYearsMemberIds(params.paidYears);
+      query._id = MemberService.intersectMemberIds(query._id, paidIds);
     }
 
-    // Advanced Filter: Unpaid Years (If they missed ANY of the selected years, include them)
+    // Advanced Filter: Unpaid Years (Missed ALL or Missed ANY of applicable years)
     if (params.unpaidYears && params.unpaidYears.length > 0) {
-      const membersWithAllUnpaidYears = await MembershipRenewal.aggregate([
-        { $match: { membershipYear: { $in: params.unpaidYears }, status: 'Active' } },
-        { $group: { _id: '$memberId', uniqueYears: { $addToSet: '$membershipYear' } } },
-        { $match: { $expr: { $eq: [{ $size: '$uniqueYears' }, params.unpaidYears.length] } } }
-      ]);
-      const excludedIds = membersWithAllUnpaidYears.map(r => r._id);
-      query._id = { ...query._id, $nin: excludedIds };
+      const unpaidIds = await MemberService.resolveUnpaidYearsMemberIds(
+        params.unpaidYears,
+        params.unpaidMatchMode || 'all'
+      );
+      query._id = MemberService.intersectMemberIds(query._id, unpaidIds);
     }
 
     if (params.startSerial !== undefined || params.endSerial !== undefined) {
@@ -377,5 +374,123 @@ export class MemberService {
     await MembershipRenewal.deleteMany({ memberId: member._id });
 
     return member;
+  }
+
+  /**
+   * Helper to intersect an array of ObjectIds with an existing query._id condition
+   */
+  private static intersectMemberIds(
+    existingIdFilter: any,
+    newIds: mongoose.Types.ObjectId[]
+  ): any {
+    const newIdStrs = new Set(newIds.map((id) => id.toString()));
+    if (!existingIdFilter) {
+      return { $in: newIds };
+    }
+    if (existingIdFilter.$in) {
+      const intersected = existingIdFilter.$in.filter((id: any) =>
+        newIdStrs.has(id.toString())
+      );
+      return { ...existingIdFilter, $in: intersected };
+    }
+    return { ...existingIdFilter, $in: newIds };
+  }
+
+  /**
+   * Resolve member IDs matching paid years.
+   * A member has paid in year Y if:
+   * 1. They joined in year Y (joinYear === Y, initial membership paid upon admission), OR
+   * 2. An active MembershipRenewal exists for year Y.
+   * Member must satisfy this for ALL years in paidYears.
+   */
+  private static async resolvePaidYearsMemberIds(
+    paidYears: number[]
+  ): Promise<mongoose.Types.ObjectId[]> {
+    if (!paidYears || paidYears.length === 0) return [];
+
+    const renewalDocs = await MembershipRenewal.find(
+      {
+        membershipYear: { $in: paidYears },
+        status: 'Active',
+      },
+      { memberId: 1, membershipYear: 1 }
+    ).lean();
+
+    const memberRenewals = new Map<string, Set<number>>();
+    for (const r of renewalDocs) {
+      const key = r.memberId.toString();
+      if (!memberRenewals.has(key)) memberRenewals.set(key, new Set());
+      memberRenewals.get(key)!.add(r.membershipYear);
+    }
+
+    const candidateMembers = await Member.find(
+      { isDeleted: false },
+      { _id: 1, joinYear: 1 }
+    ).lean();
+
+    return candidateMembers
+      .filter((m) => {
+        const idStr = m._id.toString();
+        const rens = memberRenewals.get(idStr) || new Set();
+        return paidYears.every((y) => m.joinYear === y || rens.has(y));
+      })
+      .map((m) => m._id as mongoose.Types.ObjectId);
+  }
+
+  /**
+   * Resolve member IDs matching unpaid years.
+   * - Only considers years where member was already registered (member.joinYear <= Y).
+   * - A member has paid in year Y if joinYear === Y or an active renewal exists for Y.
+   * - Mode 'all': member has NOT paid for ALL applicable years in unpaidYears.
+   * - Mode 'any': member has NOT paid for AT LEAST ONE applicable year in unpaidYears.
+   * - If member joined after all selected unpaid years, they are excluded (not liable).
+   */
+  private static async resolveUnpaidYearsMemberIds(
+    unpaidYears: number[],
+    unpaidMatchMode: 'all' | 'any' = 'all'
+  ): Promise<mongoose.Types.ObjectId[]> {
+    if (!unpaidYears || unpaidYears.length === 0) return [];
+
+    const renewalDocs = await MembershipRenewal.find(
+      {
+        membershipYear: { $in: unpaidYears },
+        status: 'Active',
+      },
+      { memberId: 1, membershipYear: 1 }
+    ).lean();
+
+    const memberRenewals = new Map<string, Set<number>>();
+    for (const r of renewalDocs) {
+      const key = r.memberId.toString();
+      if (!memberRenewals.has(key)) memberRenewals.set(key, new Set());
+      memberRenewals.get(key)!.add(r.membershipYear);
+    }
+
+    const candidateMembers = await Member.find(
+      { isDeleted: false },
+      { _id: 1, joinYear: 1 }
+    ).lean();
+
+    return candidateMembers
+      .filter((m) => {
+        const idStr = m._id.toString();
+        const rens = memberRenewals.get(idStr) || new Set();
+
+        // Applicable years for this member: only years after or equal to their joining year
+        const applicableYears = unpaidYears.filter(
+          (y) => m.joinYear && m.joinYear <= y
+        );
+        if (applicableYears.length === 0) {
+          // Member joined in a later year; not liable for these earlier years
+          return false;
+        }
+
+        if (unpaidMatchMode === 'all') {
+          return applicableYears.every((y) => m.joinYear !== y && !rens.has(y));
+        } else {
+          return applicableYears.some((y) => m.joinYear !== y && !rens.has(y));
+        }
+      })
+      .map((m) => m._id as mongoose.Types.ObjectId);
   }
 }

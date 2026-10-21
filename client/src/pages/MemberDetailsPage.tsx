@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { memberService, renewalService } from '../services/api';
 import { Member, MembershipRenewal } from '../types';
 import { useToast } from '../context/ToastContext';
@@ -26,7 +26,18 @@ import {
 export const MemberDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { success, error } = useToast();
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/members');
+    }
+  };
 
   const [member, setMember] = useState<Member | null>(null);
   const [renewals, setRenewals] = useState<MembershipRenewal[]>([]);
@@ -87,9 +98,9 @@ export const MemberDetailsPage: React.FC = () => {
     return (
       <div className="p-8 text-center bg-white rounded-lg border border-border">
         <p className="text-sm text-danger font-semibold">Member profile not found.</p>
-        <Link to="/members" className="mt-3 inline-block text-xs font-semibold text-primary underline">
+        <button onClick={handleBack} className="mt-3 inline-block text-xs font-semibold text-primary underline cursor-pointer">
           Back to Members
-        </Link>
+        </button>
       </div>
     );
   }
@@ -98,13 +109,14 @@ export const MemberDetailsPage: React.FC = () => {
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Top action bar */}
       <div className="flex items-center justify-between no-print">
-        <Link
-          to="/members"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#171717] hover:text-[#C92812] transition-colors"
+        <button
+          type="button"
+          onClick={handleBack}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#171717] hover:text-[#C92812] transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Member Directory</span>
-        </Link>
+        </button>
 
         <div className="flex items-center gap-2.5">
           <button
