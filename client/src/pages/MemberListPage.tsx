@@ -93,6 +93,7 @@ export const MemberListPage: React.FC = () => {
   const [gender, setGender] = useState<string>(initialGender);
   const [joinYear, setJoinYear] = useState<string>(initialJoinYear);
   const [membershipYear, setMembershipYear] = useState<string>(initialMembershipYear);
+  const [debouncedMembershipYear, setDebouncedMembershipYear] = useState<string>(initialMembershipYear);
   const [availableJoinYears, setAvailableJoinYears] = useState<number[]>([]);
   const [paidYears, setPaidYears] = useState<string>(initialPaidYears);
   const [debouncedPaidYears, setDebouncedPaidYears] = useState<string>(initialPaidYears);
@@ -115,6 +116,7 @@ export const MemberListPage: React.FC = () => {
 
   // Flags to avoid resetting page=1 on initial mount when returning to page > 1
   const isSearchMount = useRef(true);
+  const isMembershipYearMount = useRef(true);
   const isPaidYearsMount = useRef(true);
   const isUnpaidYearsMount = useRef(true);
 
@@ -130,6 +132,19 @@ export const MemberListPage: React.FC = () => {
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Debounce membershipYear input
+  useEffect(() => {
+    if (isMembershipYearMount.current) {
+      isMembershipYearMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setDebouncedMembershipYear(membershipYear);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [membershipYear]);
 
   // Debounce paidYears input
   useEffect(() => {
@@ -164,7 +179,7 @@ export const MemberListPage: React.FC = () => {
     if (status && status !== 'All') params.status = status;
     if (gender && gender !== 'All') params.gender = gender;
     if (joinYear) params.joinYear = joinYear;
-    if (membershipYear) params.membershipYear = membershipYear;
+    if (debouncedMembershipYear) params.membershipYear = debouncedMembershipYear;
     if (debouncedPaidYears) params.paidYears = debouncedPaidYears;
     if (debouncedUnpaidYears) params.unpaidYears = debouncedUnpaidYears;
     if (pagination.page > 1) params.page = String(pagination.page);
@@ -177,7 +192,7 @@ export const MemberListPage: React.FC = () => {
     status,
     gender,
     joinYear,
-    membershipYear,
+    debouncedMembershipYear,
     debouncedPaidYears,
     debouncedUnpaidYears,
     pagination.page,
@@ -205,6 +220,7 @@ export const MemberListPage: React.FC = () => {
     setGender((prev) => (prev !== urlGender ? urlGender : prev));
     setJoinYear((prev) => (prev !== urlJoinYear ? urlJoinYear : prev));
     setMembershipYear((prev) => (prev !== urlMembershipYear ? urlMembershipYear : prev));
+    setDebouncedMembershipYear((prev) => (prev !== urlMembershipYear ? urlMembershipYear : prev));
     setPaidYears((prev) => (prev !== urlPaidYears ? urlPaidYears : prev));
     setDebouncedPaidYears((prev) => (prev !== urlPaidYears ? urlPaidYears : prev));
     setUnpaidYears((prev) => (prev !== urlUnpaidYears ? urlUnpaidYears : prev));
@@ -227,6 +243,13 @@ export const MemberListPage: React.FC = () => {
     return years.length > 0 ? years : undefined;
   };
 
+  // Helper to parse clean 4-digit single year
+  const parseValidYear = (input: string): number | undefined => {
+    if (!input || !input.trim()) return undefined;
+    const num = Number(input.trim());
+    return !isNaN(num) && num >= 1900 && num <= 2100 ? num : undefined;
+  };
+
   // Load distinct join years for filter
   useEffect(() => {
     memberService
@@ -242,7 +265,7 @@ export const MemberListPage: React.FC = () => {
       status: status === 'All' ? undefined : status,
       gender: gender === 'All' ? undefined : gender,
       joinYear: joinYear || undefined,
-      membershipYear: membershipYear || undefined,
+      membershipYear: debouncedMembershipYear || undefined,
       paidYears: debouncedPaidYears || undefined,
       unpaidYears: debouncedUnpaidYears || undefined,
       page: pagination.page,
@@ -265,7 +288,7 @@ export const MemberListPage: React.FC = () => {
         status: status === 'All' ? undefined : status,
         gender: gender === 'All' ? undefined : gender,
         joinYear: joinYear ? Number(joinYear) : undefined,
-        membershipYear: membershipYear ? Number(membershipYear) : undefined,
+        membershipYear: parseValidYear(debouncedMembershipYear),
         paidYears: parseValidYears(debouncedPaidYears),
         unpaidYears: parseValidYears(debouncedUnpaidYears),
         unpaidMatchMode: 'all',
@@ -295,7 +318,7 @@ export const MemberListPage: React.FC = () => {
     status,
     gender,
     joinYear,
-    membershipYear,
+    debouncedMembershipYear,
     debouncedPaidYears,
     debouncedUnpaidYears,
     sortBy,
@@ -326,6 +349,7 @@ export const MemberListPage: React.FC = () => {
     setGender('All');
     setJoinYear('');
     setMembershipYear('');
+    setDebouncedMembershipYear('');
     setPaidYears('');
     setDebouncedPaidYears('');
     setUnpaidYears('');
@@ -466,11 +490,10 @@ export const MemberListPage: React.FC = () => {
             <input
               type="number"
               placeholder="e.g. 2026"
+              min={1900}
+              max={2100}
               value={membershipYear}
-              onChange={(e) => {
-                setMembershipYear(e.target.value);
-                setPagination((prev) => ({ ...prev, page: 1 }));
-              }}
+              onChange={(e) => setMembershipYear(e.target.value)}
               className="w-24 text-xs bg-[#F5F5F5] border border-[#E3E3E3] rounded-md px-2.5 py-1.5 focus:outline-none focus:border-[#C92812] text-[#171717] font-medium"
             />
           </div>
@@ -811,7 +834,7 @@ export const MemberListPage: React.FC = () => {
           status,
           gender,
           joinYear,
-          membershipYear,
+          membershipYear: debouncedMembershipYear,
           paidYears,
           unpaidYears,
         }}

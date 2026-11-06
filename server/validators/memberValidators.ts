@@ -70,8 +70,8 @@ export const memberQuerySchema = z
     search: z.string().max(100).optional(),
     status: z.string().max(30).optional(),
     gender: z.string().max(30).optional(),
-    joinYear: z.coerce.number().int().min(1900).max(2100).optional(),
-    membershipYear: z.coerce.number().int().min(1900).max(2100).optional(),
+    joinYear: z.coerce.number().int().optional(),
+    membershipYear: z.coerce.number().int().optional(),
     startSerial: z.coerce.number().int().min(1).optional(),
     endSerial: z.coerce.number().int().min(1).optional(),
     sortBy: z
