@@ -16,6 +16,10 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust reverse proxy (Render, Heroku, Nginx, Cloudflare)
+// Ensures express-rate-limit correctly identifies client IPs from X-Forwarded-For
+app.set('trust proxy', 1);
+
 
 
 // Disable Express identification
