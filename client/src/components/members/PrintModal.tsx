@@ -97,8 +97,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
         dataToPrint = res.data;
       }
 
-      // Generate clean print window with custom CSS matching orientation and paper layout
-      const printWindow = window.open('', '_blank', 'width=1100,height=800');
+      // Open in a new browser tab instead of a popup window
+      const printWindow = window.open('', '_blank');
       if (!printWindow) {
         alert('Pop-up blocked. Please allow popups to print member list.');
         setIsPreparing(false);
@@ -174,31 +174,49 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               display: flex;
               align-items: center;
               justify-content: center;
-              gap: 12px;
+              gap: 16px;
               margin-bottom: 6px;
             }
             .header-logo {
-              width: 44px;
-              height: 44px;
+              width: 58px;
+              height: 58px;
               object-fit: contain;
+              flex-shrink: 0;
+            }
+            .header-divider-v {
+              width: 1.5px;
+              height: 54px;
+              background-color: #171717;
+              flex-shrink: 0;
+            }
+            .header-text-block {
+              text-align: center;
+              flex: 1;
             }
             .org-heading-bn {
-              font-size: 16pt;
-              font-weight: 700;
+              font-size: 17pt;
+              font-weight: 800;
               color: #171717;
               margin: 0;
-              line-height: 1.2;
+              line-height: 1.15;
             }
-            .org-heading-en {
-              font-size: 11pt;
+            .org-subheading-bn {
+              font-size: 10pt;
+              font-weight: 700;
+              color: #C92812;
+              margin-top: 2px;
+              text-decoration: underline;
+              text-underline-offset: 2.5px;
+            }
+            .org-address-bn {
+              font-size: 9pt;
               font-weight: 600;
-              color: #555555;
-              margin: 2px 0 0 0;
-              letter-spacing: 0.3px;
+              color: #171717;
+              margin-top: 1px;
             }
             .red-divider {
               width: 100%;
-              height: 2px;
+              height: 2.5px;
               background-color: #C92812;
               margin: 8px 0;
             }
@@ -244,9 +262,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           <div class="header-container">
             <div class="header-top">
               <img src="/logo.png" class="header-logo" alt="ABMPS Logo" />
-              <div>
+              <div class="header-divider-v"></div>
+              <div class="header-text-block">
                 <h1 class="org-heading-bn">বর্ধমান মিউনিসিপ্যাল পেনশনার্স সমিতি</h1>
-                <p class="org-heading-en">Burdwan Municipal Pensioners Samiti</p>
+                <div class="org-subheading-bn">
+                  <u>(অনুমোদিত: - অল বেঙ্গল মিউনিসিপ্যাল পেনশনার্স সমিতি)</u>
+                </div>
+                <div class="org-address-bn">
+                  বর্ধমান পৌরসভা অফিস, জি. টি. রোড, পূর্ব-বর্ধমান
+                </div>
               </div>
             </div>
             <div class="red-divider"></div>

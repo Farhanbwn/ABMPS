@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
-import { memberService } from '../services/api';
+import { memberService, renewalService } from '../services/api';
 import { Member, PaginationMeta } from '../types';
 import { useToast } from '../context/ToastContext';
 import { PrintModal } from '../components/members/PrintModal';
 import { ExcelExportModal } from '../components/members/ExcelExportModal';
 import { DeleteConfirmModal } from '../components/members/DeleteConfirmModal';
 import { RenewalModal } from '../components/members/RenewalModal';
+import { printMemberProfile } from '../utils/printProfile';
 import {
   Search,
   UserPlus,
@@ -375,6 +376,16 @@ export const MemberListPage: React.FC = () => {
     }
   };
 
+  // Quick download / print official profile document
+  const handleQuickPrintMember = async (member: Member) => {
+    try {
+      const res = await renewalService.getRenewalsByMember(member._id);
+      printMemberProfile(member, res.data || []);
+    } catch {
+      printMemberProfile(member, []);
+    }
+  };
+
   const hasActiveFilters =
     Boolean(search) || status !== 'All' || gender !== 'All' || Boolean(joinYear) || Boolean(membershipYear) || Boolean(paidYears) || Boolean(unpaidYears);
 
@@ -713,6 +724,14 @@ export const MemberListPage: React.FC = () => {
                         >
                           <Eye className="w-4 h-4" />
                         </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickPrintMember(member)}
+                          title="Download / Print Official Profile"
+                          className="p-1.5 rounded-md text-[#555555] hover:text-[#C92812] hover:bg-[#FAF9F7] transition-colors cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
                         <Link
                           to={`/members/${member._id}/edit`}
                           state={{ from: location.pathname + location.search }}

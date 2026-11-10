@@ -6,6 +6,8 @@ import { useToast } from '../context/ToastContext';
 import { RenewalModal } from '../components/members/RenewalModal';
 import { EditRenewalModal } from '../components/members/EditRenewalModal';
 import { DeleteRenewalConfirmModal } from '../components/members/DeleteRenewalConfirmModal';
+import { OfficialLetterhead } from '../components/common/OfficialLetterhead';
+import { printMemberProfile } from '../utils/printProfile';
 import {
   ArrowLeft,
   Edit,
@@ -67,7 +69,9 @@ export const MemberDetailsPage: React.FC = () => {
   }, [id]);
 
   const handlePrintProfile = () => {
-    window.print();
+    if (member) {
+      printMemberProfile(member, renewals);
+    }
   };
 
   const handleDeleteRenewalConfirm = async () => {
@@ -121,10 +125,11 @@ export const MemberDetailsPage: React.FC = () => {
         <div className="flex items-center gap-2.5">
           <button
             onClick={handlePrintProfile}
-            className="btn-secondary text-xs !py-1.5 !px-3"
+            className="btn-secondary text-xs !py-1.5 !px-3 shadow-xs"
+            title="Download or Print Official Member Profile"
           >
             <Printer className="w-4 h-4 text-[#C92812]" />
-            <span>Print Profile</span>
+            <span>Download / Print Profile</span>
           </button>
           <Link
             to={`/members/${member._id}/edit`}
@@ -145,6 +150,11 @@ export const MemberDetailsPage: React.FC = () => {
 
       {/* Main Profile Header Card */}
       <div className="bg-white rounded-xl border border-[#E3E3E3] shadow-xs p-6 sm:p-8">
+        {/* Official ABMPS Letterhead - Hidden on screen, only visible in print preview */}
+        <div className="hidden print:block">
+          <OfficialLetterhead className="mb-6 pb-2" />
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-xl bg-[#C92812] text-white font-extrabold text-2xl flex items-center justify-center shadow-xs">

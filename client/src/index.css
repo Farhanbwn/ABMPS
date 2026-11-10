@@ -192,6 +192,11 @@
 
 /* Print Styles - Official ABMPS Letterhead & Table styling (Section 21) */
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Hide non-printable app UI */
   nav,
   aside,
