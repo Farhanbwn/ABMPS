@@ -452,7 +452,7 @@ export function printMemberProfile(member: Member, renewals: MembershipRenewal[]
 
     <!-- Official Document Footer -->
     <div class="print-footer">
-      <div>বর্ধমান মিউনিসিপ্যাল পেনশনার্স সমিতি • অফিসিয়াল প্রশাসনিক নথি</div>
+      <div>বর্ধমান মিউনিসিপ্যাল পেনশনার্স সমিতি • প্রশাসনিক নথি</div>
       <div>Burdwan Municipal Pensioners Samiti • Official Record</div>
     </div>
   </div>
